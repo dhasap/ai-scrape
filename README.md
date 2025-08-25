@@ -22,8 +22,8 @@ Ikuti langkah-langkah berikut untuk menjalankan proyek ini di mesin lokal Anda.
 Pertama, clone repository ini ke komputer Anda:
 
 ```bash
-git clone https://github.com/NAMA_USER_ANDA/NAMA_REPO_ANDA.git
-cd NAMA_REPO_ANDA
+git clone https://github.com/dhasap/ai-scrape.git
+cd ai-scrape
 ```
 
 ### 2. Instalasi Dependensi
