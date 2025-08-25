@@ -143,10 +143,8 @@ def save_to_json(data: dict):
             json.dump(data, f, ensure_ascii=False, indent=4)
         print(f"\n{Colors.OKGREEN}💾 Data berhasil disimpan ke file: {filename}{Colors.ENDC}")
 
-def perform_search(driver, query: str, stay_on_results_page: bool):
-    """
-    Melakukan pencarian. Jika stay_on_results_page=False, akan lanjut ke detail komik.
-    """
+def perform_search(driver, query: str):
+    """Melakukan pencarian dan mengembalikan status keberhasilan."""
     print(f"{Colors.OKBLUE}🤖 Melakukan pencarian untuk: '{query}'...{Colors.ENDC}")
     try:
         wait = WebDriverWait(driver, 10)
@@ -166,33 +164,53 @@ def perform_search(driver, query: str, stay_on_results_page: bool):
         
         print(f"{Colors.OKGREEN}✅ Halaman hasil pencarian dimuat.{Colors.ENDC}")
         time.sleep(2)
-
-        if stay_on_results_page:
-            return True
-
-        print(f"{Colors.OKBLUE}🤖 Menganalisis hasil pencarian untuk '{query}'...{Colors.ENDC}")
-        html = driver.page_source
-        links = extract_links(driver.current_url, html)
-        if not links:
-            print(f"{Colors.FAIL}❌ Tidak ada hasil yang ditemukan untuk '{query}'.{Colors.ENDC}")
-            return False
-
-        chosen_url = ask_gemini_to_choose_link(links, f"Pilih link yang paling cocok untuk judul '{query}'")
-        if chosen_url:
-            driver.get(chosen_url)
-            time.sleep(2)
-            print(f"{Colors.OKGREEN}✅ Navigasi berhasil ke halaman detail: {driver.current_url}{Colors.ENDC}")
-            return True
-        else:
-            print(f"{Colors.FAIL}❌ AI tidak bisa menentukan hasil terbaik dari pencarian.{Colors.ENDC}")
-            return False
-
-    except TimeoutException:
-        print(f"{Colors.FAIL}❌ Gagal melakukan pencarian. Elemen search tidak ditemukan.{Colors.ENDC}")
+        return True
+    except Exception:
+        print(f"{Colors.FAIL}❌ Gagal melakukan pencarian.{Colors.ENDC}")
         return False
-    except Exception as e:
-        print(f"{Colors.FAIL}❌ Terjadi error saat melakukan pencarian: {e}{Colors.ENDC}")
-        return False
+
+# --- FUNGSI BARU: MENGEkstrak & MENAMPILKAN HASIL PENCARIAN ---
+def scrape_search_results(driver):
+    """Mengekstrak judul dan link dari halaman hasil pencarian."""
+    print(f"{Colors.OKCYAN}🔍 Mengekstrak hasil pencarian...{Colors.ENDC}")
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    results = []
+    
+    # Selector umum yang mencakup Komikcast dan Komiku
+    items = soup.select('.list-update_item, .bge')
+
+    if not items:
+        print(f"{Colors.WARNING}⚠️ Tidak dapat menemukan item hasil pencarian di halaman ini.{Colors.ENDC}")
+        return []
+
+    for item in items:
+        link_tag = item.find('a', href=True)
+        title_tag = item.find(['h3', 'h4'])
+        
+        if link_tag and title_tag:
+            title = title_tag.get_text(strip=True)
+            href = urljoin(driver.current_url, link_tag['href'])
+            results.append({'title': title, 'href': href})
+            
+    return results
+
+def display_search_results(results, index):
+    """Menampilkan 5 hasil pencarian dari indeks yang diberikan."""
+    if index >= len(results):
+        print(f"\n{Colors.WARNING}-- Tidak ada judul lain untuk ditampilkan --{Colors.ENDC}")
+        return index
+
+    print(f"\n{Colors.OKGREEN}Berikut adalah hasil pencarian:{Colors.ENDC}")
+    end_index = min(index + 5, len(results))
+    for i in range(index, end_index):
+        print(f"  {Colors.BOLD}{i + 1}.{Colors.ENDC} {results[i]['title']}")
+    
+    if end_index < len(results):
+        print(f"\n{Colors.OKCYAN}Ketik 'lagi' untuk 5 berikutnya, atau 'pergi ke [nomor]' untuk memilih.{Colors.ENDC}")
+    else:
+        print(f"\n{Colors.WARNING}-- Akhir dari hasil pencarian --{Colors.ENDC}")
+        
+    return end_index
 
 # --- FUNGSI UTAMA (DENGAN TAMPILAN BARU) ---
 def display_banner():
@@ -206,8 +224,8 @@ def display_banner():
   \___/ |_|\__,_|____/ \___/|_____|   \____\___/ \___/|_____|_| \_\
                                                                   
 {Colors.ENDC}
-{Colors.HEADER}{Colors.BOLD}📖 Universal AI Comic Scraper v4.1 🤖{Colors.ENDC}
-{Colors.OKCYAN}Dengan logika pencarian yang disempurnakan!{Colors.ENDC}
+{Colors.HEADER}{Colors.BOLD}📖 Universal AI Comic Scraper v5.0 🤖{Colors.ENDC}
+{Colors.OKCYAN}Dengan pencarian interaktif!{Colors.ENDC}
     """
     print(banner)
 
@@ -227,13 +245,18 @@ def main_cli():
 
     print("\n" + "="*50)
     print(f"{Colors.BOLD}Perintah yang tersedia:{Colors.ENDC}")
-    print(f"  {Colors.OKGREEN}pergi cari [judul]{Colors.ENDC} - Mencari komik dan berhenti di hasil pencarian.")
-    print(f"  {Colors.OKGREEN}pergi ke [judul]{Colors.ENDC}   - Langsung menuju ke halaman detail komik.")
+    print(f"  {Colors.OKGREEN}pergi cari [judul]{Colors.ENDC} - Mencari komik & menampilkan hasil.")
+    print(f"  {Colors.OKGREEN}pergi ke [judul/no]{Colors.ENDC} - Langsung ke detail komik / pilih dari hasil cari.")
     print(f"  {Colors.OKGREEN}pergi [menu]{Colors.ENDC}      - Navigasi ke menu (e.g., pergi ke daftar komik).")
-    print(f"  {Colors.OKGREEN}scrape{Colors.ENDC}              - Ambil detail dari halaman saat ini (Bisa semua web!).")
+    print(f"  {Colors.OKGREEN}lagi{Colors.ENDC}                - Tampilkan 5 hasil pencarian berikutnya.")
+    print(f"  {Colors.OKGREEN}scrape{Colors.ENDC}              - Ambil detail dari halaman saat ini.")
     print(f"  {Colors.OKGREEN}url{Colors.ENDC}                 - Tampilkan URL halaman saat ini.")
     print(f"  {Colors.OKGREEN}keluar{Colors.ENDC}              - Keluar dari program.")
     print("="*50)
+
+    # State untuk hasil pencarian
+    search_results = []
+    search_results_index = 0
 
     while True:
         try:
@@ -249,7 +272,10 @@ def main_cli():
                     print(f"{Colors.FAIL}Mohon berikan instruksi.{Colors.ENDC}")
                     continue
                 
-                # --- LOGIKA BARU YANG DISEMPURNAKAN ---
+                # Reset state pencarian jika ada navigasi baru
+                search_results = []
+                search_results_index = 0
+
                 search_keyword = None
                 if "cari" in instruction:
                     search_keyword = "cari"
@@ -257,29 +283,41 @@ def main_cli():
                     search_keyword = "search"
 
                 if search_keyword:
-                    # Perintah eksplisit untuk mencari, akan berhenti di halaman hasil
                     query = instruction.split(search_keyword, 1)[1].strip()
-                    perform_search(driver, query, stay_on_results_page=True)
+                    if perform_search(driver, query):
+                        search_results = scrape_search_results(driver)
+                        search_results_index = display_search_results(search_results, 0)
                 else:
-                    # Perintah implisit (navigasi menu atau langsung ke judul)
-                    common_nav_terms = ["daftar", "list", "proyek", "genre", "home", "beranda", "project"]
-                    is_common_nav = any(term in instruction for term in common_nav_terms)
-
-                    if is_common_nav:
-                        # Navigasi link biasa ke menu
-                        html = driver.page_source
-                        links = extract_links(current_url, html)
-                        chosen_url = ask_gemini_to_choose_link(links, instruction)
-                        if chosen_url:
-                            driver.get(chosen_url)
-                            time.sleep(2)
-                            print(f"{Colors.OKGREEN}✅ Navigasi berhasil ke: {driver.current_url}{Colors.ENDC}")
+                    target = instruction.replace("ke", "").strip()
+                    if target.isdigit() and search_results:
+                        index = int(target) - 1
+                        if 0 <= index < len(search_results):
+                            driver.get(search_results[index]['href'])
+                            search_results = [] # Reset setelah memilih
                         else:
-                            print(f"{Colors.FAIL}❌ AI tidak dapat menemukan link yang cocok.{Colors.ENDC}")
+                            print(f"{Colors.FAIL}Nomor tidak valid.{Colors.ENDC}")
                     else:
-                        # Perintah langsung ke judul komik
-                        query = instruction.replace("ke", "").strip()
-                        perform_search(driver, query, stay_on_results_page=False)
+                        common_nav_terms = ["daftar", "list", "proyek", "genre", "home", "beranda", "project"]
+                        if any(term in instruction for term in common_nav_terms):
+                            html = driver.page_source
+                            links = extract_links(current_url, html)
+                            chosen_url = ask_gemini_to_choose_link(links, instruction)
+                            if chosen_url: driver.get(chosen_url)
+                            else: print(f"{Colors.FAIL}❌ AI tidak dapat menemukan link yang cocok.{Colors.ENDC}")
+                        else:
+                            # Langsung cari dan navigasi
+                            if perform_search(driver, target):
+                                html = driver.page_source
+                                links = extract_links(driver.current_url, html)
+                                chosen_url = ask_gemini_to_choose_link(links, f"Pilih link untuk '{target}'")
+                                if chosen_url: driver.get(chosen_url)
+                                else: print(f"{Colors.FAIL}❌ AI tidak bisa menentukan hasil terbaik.{Colors.ENDC}")
+            
+            elif user_input == "lagi":
+                if not search_results:
+                    print(f"{Colors.FAIL}Lakukan pencarian dulu dengan 'pergi cari [judul]'.{Colors.ENDC}")
+                else:
+                    search_results_index = display_search_results(search_results, search_results_index)
 
             elif user_input == "scrape":
                 comic_data = scrape_comic_details_with_ai(driver.current_url, driver.page_source)
