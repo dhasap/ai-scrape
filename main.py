@@ -100,36 +100,75 @@ def ask_gemini_to_choose_link(links: list[dict], user_prompt: str) -> str:
         return ""
 
 def scrape_comic_details(url: str, html_content: str) -> dict:
+    """
+    Mengekstrak detail komik. Fungsi ini sekarang mendukung beberapa website.
+    """
     print(f"\n{Colors.OKCYAN}🔍 Scraping detail dari {url}...{Colors.ENDC}")
     soup = BeautifulSoup(html_content, 'html.parser')
     data = {'url_sumber': url}
+
     try:
-        data['judul'] = soup.select_one('.komik_info-content-body-title').get_text(strip=True)
-        data['sinopsis'] = soup.select_one('.komik_info-description-sinopsis p').get_text(strip=True)
-        details = {}
-        for item in soup.select('.komik_info-content-native li'):
-            key = item.select_one('b').get_text(strip=True).lower().replace(' ', '_')
-            value = item.select_one('span').get_text(strip=True)
-            details[key] = value
-        data['details'] = details
-        data['genre'] = [a.get_text(strip=True) for a in soup.select('.komik_info-genre-list a')]
-        rating_element = soup.select_one('.komik_info-content-rating-avg')
-        data['rating'] = rating_element.get_text(strip=True) if rating_element else 'N/A'
-        chapters = []
-        for chapter_item in soup.select('.komik_info-chapters-item'):
-            link_tag = chapter_item.find('a')
-            time_tag = chapter_item.find(class_='chapter-link-time')
-            if link_tag:
-                chapters.append({
-                    'chapter': link_tag.get_text(strip=True),
-                    'url': link_tag['href'],
-                    'tanggal_rilis': time_tag.get_text(strip=True) if time_tag else 'N/A'
-                })
-        data['daftar_chapter'] = chapters
+        # --- LOGIKA BARU: DETEKSI WEBSITE ---
+        if "komiku.asia" in url:
+            # --- Logika Scraping untuk Komiku ---
+            data['judul'] = soup.select_one('h1.post-title').get_text(strip=True)
+            data['sinopsis'] = soup.select_one('.entry-content p').get_text(strip=True)
+            
+            details = {}
+            for row in soup.select('table.inftable tr'):
+                key = row.find('td', text=True).get_text(strip=True).lower().replace(' ', '_')
+                value = row.find_all('td')[1].get_text(strip=True)
+                details[key] = value
+            data['details'] = details
+
+            data['genre'] = [a.get_text(strip=True) for a in soup.select('span.genre-list a')]
+            data['rating'] = soup.select_one('.rating-area .num').get_text(strip=True)
+            
+            chapters = []
+            for row in soup.select('table#chapterlist tr'):
+                link_tag = row.select_one('td.judulchapter > a')
+                time_tag = row.select_one('td.tanggalseries')
+                if link_tag:
+                    chapters.append({
+                        'chapter': link_tag.get_text(strip=True),
+                        'url': link_tag['href'],
+                        'tanggal_rilis': time_tag.get_text(strip=True) if time_tag else 'N/A'
+                    })
+            data['daftar_chapter'] = chapters
+
+        elif "komikcast" in url:
+            # --- Logika Scraping untuk Komikcast (Lama) ---
+            data['judul'] = soup.select_one('.komik_info-content-body-title').get_text(strip=True)
+            data['sinopsis'] = soup.select_one('.komik_info-description-sinopsis p').get_text(strip=True)
+            details = {}
+            for item in soup.select('.komik_info-content-native li'):
+                key = item.select_one('b').get_text(strip=True).lower().replace(' ', '_')
+                value = item.select_one('span').get_text(strip=True)
+                details[key] = value
+            data['details'] = details
+            data['genre'] = [a.get_text(strip=True) for a in soup.select('.komik_info-genre-list a')]
+            rating_element = soup.select_one('.komik_info-content-rating-avg')
+            data['rating'] = rating_element.get_text(strip=True) if rating_element else 'N/A'
+            chapters = []
+            for chapter_item in soup.select('.komik_info-chapters-item'):
+                link_tag = chapter_item.find('a')
+                time_tag = chapter_item.find(class_='chapter-link-time')
+                if link_tag:
+                    chapters.append({
+                        'chapter': link_tag.get_text(strip=True),
+                        'url': link_tag['href'],
+                        'tanggal_rilis': time_tag.get_text(strip=True) if time_tag else 'N/A'
+                    })
+            data['daftar_chapter'] = chapters
+        else:
+            domain = url.split('/')[2]
+            return {'error': f'Website "{domain}" belum didukung untuk scraping.'}
+        
         print(f"{Colors.OKGREEN}✅ Scraping berhasil!{Colors.ENDC}")
-    except AttributeError:
-        return {'error': 'Gagal mengambil data, mungkin ini bukan halaman detail komik.'}
+    except (AttributeError, IndexError):
+        return {'error': 'Gagal mengambil data. Struktur HTML website mungkin telah berubah.'}
     return data
+
 
 def save_to_json(data: dict):
     if 'judul' in data:
@@ -142,26 +181,27 @@ def perform_search(driver, query: str):
     """Menggunakan Selenium untuk mengetik di kolom pencarian dan submit secara robust."""
     print(f"{Colors.OKBLUE}🤖 Mencoba melakukan pencarian untuk: '{query}'...{Colors.ENDC}")
     try:
-        # Tunggu hingga tombol search bisa diklik (maksimal 10 detik)
         wait = WebDriverWait(driver, 10)
-        search_button = wait.until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "a.search_button"))
-        )
-        search_button.click()
+        # Logika pencarian mungkin berbeda per website, ini untuk Komikcast
+        if "komikcast" in driver.current_url:
+            search_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.search_button")))
+            search_button.click()
+            search_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".search-form .search-field")))
+        # Logika pencarian untuk Komiku
+        elif "komiku.asia" in driver.current_url:
+            search_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input.cari")))
+        else:
+            print(f"{Colors.FAIL}❌ Fungsi pencarian belum didukung untuk website ini.{Colors.ENDC}")
+            return False
 
-        # Tunggu hingga kolom input muncul dan terlihat
-        search_input = wait.until(
-            EC.visibility_of_element_located((By.CSS_SELECTOR, ".search-form .search-field"))
-        )
         search_input.send_keys(query)
         search_input.send_keys(Keys.RETURN)
         
-        time.sleep(3)  # Tetap beri waktu agar halaman hasil pencarian dimuat
+        time.sleep(3)
         print(f"{Colors.OKGREEN}✅ Halaman hasil pencarian untuk '{query}' berhasil dimuat.{Colors.ENDC}")
         return True
     except TimeoutException:
         print(f"{Colors.FAIL}❌ Gagal melakukan pencarian. Elemen search tidak ditemukan dalam waktu yang ditentukan.{Colors.ENDC}")
-        print("Mungkin struktur website telah berubah atau halaman tidak dimuat dengan benar.")
         return False
     except Exception as e:
         print(f"{Colors.FAIL}❌ Terjadi error saat melakukan pencarian: {e}{Colors.ENDC}")
@@ -179,7 +219,7 @@ def display_banner():
   \___/ |_|\__,_|____/ \___/|_____|   \____\___/ \___/|_____|_| \_\
                                                                   
 {Colors.ENDC}
-{Colors.HEADER}{Colors.BOLD}📖 AI Comic Scraper v2.2 🤖{Colors.ENDC}
+{Colors.HEADER}{Colors.BOLD}📖 AI Comic Scraper v2.3 🤖{Colors.ENDC}
 {Colors.OKCYAN}Ditenagai oleh Google Gemini & Selenium{Colors.ENDC}
     """
     print(banner)
@@ -224,7 +264,6 @@ def main_cli():
                     print(f"{Colors.FAIL}Mohon berikan instruksi.{Colors.ENDC}")
                     continue
                 
-                # --- LOGIKA PENCARIAN YANG DIPERBAIKI ---
                 search_keyword = ""
                 if "cari" in instruction:
                     search_keyword = "cari"
@@ -232,14 +271,12 @@ def main_cli():
                     search_keyword = "search"
 
                 if search_keyword:
-                    # Ambil semua teks SETELAH kata kunci "cari" atau "search"
                     query = instruction.split(search_keyword, 1)[1].strip()
                     if query:
                         perform_search(driver, query)
                     else:
                         print(f"{Colors.FAIL}Mohon masukkan judul komik yang ingin dicari.{Colors.ENDC}")
                 else:
-                    # Jika tidak ada kata kunci pencarian, lakukan navigasi link biasa
                     html = driver.page_source
                     links = extract_links(current_url, html)
                     if not links:
@@ -256,7 +293,10 @@ def main_cli():
 
             elif user_input == "scrape":
                 comic_data = scrape_comic_details(driver.current_url, driver.page_source)
-                if 'error' not in comic_data:
+                # --- LOGIKA ERROR HANDLING BARU ---
+                if 'error' in comic_data:
+                    print(f"{Colors.FAIL}❌ {comic_data['error']}{Colors.ENDC}")
+                else:
                     print(json.dumps(comic_data, indent=2, ensure_ascii=False))
                     save_prompt = input(f"\n{Colors.WARNING}Simpan ke file JSON? (y/n): {Colors.ENDC}").lower()
                     if save_prompt == 'y':
