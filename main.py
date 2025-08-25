@@ -13,7 +13,9 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 # --- KONFIGURASI ---
 try:
@@ -137,21 +139,29 @@ def save_to_json(data: dict):
         print(f"\n{Colors.OKGREEN}💾 Data berhasil disimpan ke file: {filename}{Colors.ENDC}")
 
 def perform_search(driver, query: str):
-    """Menggunakan Selenium untuk mengetik di kolom pencarian dan submit."""
+    """Menggunakan Selenium untuk mengetik di kolom pencarian dan submit secara robust."""
     print(f"{Colors.OKBLUE}🤖 Mencoba melakukan pencarian untuk: '{query}'...{Colors.ENDC}")
     try:
-        search_button = driver.find_element(By.CSS_SELECTOR, "a.search_button")
+        # Tunggu hingga tombol search bisa diklik (maksimal 10 detik)
+        wait = WebDriverWait(driver, 10)
+        search_button = wait.until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "a.search_button"))
+        )
         search_button.click()
-        time.sleep(1)
-        search_input = driver.find_element(By.CSS_SELECTOR, ".search-form .search-field")
+
+        # Tunggu hingga kolom input muncul dan terlihat
+        search_input = wait.until(
+            EC.visibility_of_element_located((By.CSS_SELECTOR, ".search-form .search-field"))
+        )
         search_input.send_keys(query)
         search_input.send_keys(Keys.RETURN)
-        time.sleep(3)
+        
+        time.sleep(3)  # Tetap beri waktu agar halaman hasil pencarian dimuat
         print(f"{Colors.OKGREEN}✅ Halaman hasil pencarian untuk '{query}' berhasil dimuat.{Colors.ENDC}")
         return True
-    except NoSuchElementException:
-        print(f"{Colors.FAIL}❌ Gagal melakukan pencarian. Elemen search (tombol/kolom) tidak ditemukan.{Colors.ENDC}")
-        print("Mungkin struktur website telah berubah atau Anda tidak di halaman utama.")
+    except TimeoutException:
+        print(f"{Colors.FAIL}❌ Gagal melakukan pencarian. Elemen search tidak ditemukan dalam waktu yang ditentukan.{Colors.ENDC}")
+        print("Mungkin struktur website telah berubah atau halaman tidak dimuat dengan benar.")
         return False
     except Exception as e:
         print(f"{Colors.FAIL}❌ Terjadi error saat melakukan pencarian: {e}{Colors.ENDC}")
@@ -169,7 +179,7 @@ def display_banner():
   \___/ |_|\__,_|____/ \___/|_____|   \____\___/ \___/|_____|_| \_\
                                                                   
 {Colors.ENDC}
-{Colors.HEADER}{Colors.BOLD}📖 AI Comic Scraper v2.1 🤖{Colors.ENDC}
+{Colors.HEADER}{Colors.BOLD}📖 AI Comic Scraper v2.2 🤖{Colors.ENDC}
 {Colors.OKCYAN}Ditenagai oleh Google Gemini & Selenium{Colors.ENDC}
     """
     print(banner)
