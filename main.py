@@ -79,7 +79,6 @@ def extract_links(base_url: str, html_content: str) -> list[dict]:
 def ask_gemini_to_choose_link(links: list[dict], user_prompt: str) -> str:
     """Meminta Gemini untuk memilih link terbaik berdasarkan instruksi user."""
     if not links: return ""
-    # Batas link diubah sesuai permintaan
     max_links = 350
     if len(links) > max_links:
         print(f"{Colors.WARNING}Peringatan: Jumlah link terlalu banyak ({len(links)}). Dibatasi menjadi {max_links} link pertama.{Colors.ENDC}")
@@ -153,13 +152,12 @@ def perform_search(driver, query: str, stay_on_results_page: bool):
         wait = WebDriverWait(driver, 10)
         search_input_selector = "input[type='search'], input[type='text'][name*='s'], input.cari, .search-form .search-field"
         
-        # Beberapa web butuh klik tombol dulu
         try:
             search_button = driver.find_element(By.CSS_SELECTOR, "a.search_button, button.search-button")
             search_button.click()
             time.sleep(0.5)
         except NoSuchElementException:
-            pass # Lanjut saja jika tidak ada tombol terpisah
+            pass 
 
         search_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, search_input_selector)))
         search_input.clear()
@@ -167,12 +165,11 @@ def perform_search(driver, query: str, stay_on_results_page: bool):
         search_input.send_keys(Keys.RETURN)
         
         print(f"{Colors.OKGREEN}✅ Halaman hasil pencarian dimuat.{Colors.ENDC}")
-        time.sleep(2) # Tunggu hasil pencarian
+        time.sleep(2)
 
         if stay_on_results_page:
-            return True # Berhenti di sini sesuai permintaan
+            return True
 
-        # --- LOGIKA BARU: LANJUT KE HALAMAN DETAIL ---
         print(f"{Colors.OKBLUE}🤖 Menganalisis hasil pencarian untuk '{query}'...{Colors.ENDC}")
         html = driver.page_source
         links = extract_links(driver.current_url, html)
@@ -209,8 +206,8 @@ def display_banner():
   \___/ |_|\__,_|____/ \___/|_____|   \____\___/ \___/|_____|_| \_\
                                                                   
 {Colors.ENDC}
-{Colors.HEADER}{Colors.BOLD}📖 Universal AI Comic Scraper v4.0 🤖{Colors.ENDC}
-{Colors.OKCYAN}Dengan logika pencarian cerdas!{Colors.ENDC}
+{Colors.HEADER}{Colors.BOLD}📖 Universal AI Comic Scraper v4.1 🤖{Colors.ENDC}
+{Colors.OKCYAN}Dengan logika pencarian yang disempurnakan!{Colors.ENDC}
     """
     print(banner)
 
@@ -252,28 +249,37 @@ def main_cli():
                     print(f"{Colors.FAIL}Mohon berikan instruksi.{Colors.ENDC}")
                     continue
                 
-                # --- LOGIKA BARU: MEMBEDAKAN JENIS PERINTAH "PERGI" ---
-                stay_on_results_page = "cari" in instruction
-                
-                # Cek apakah ini perintah navigasi umum atau pencarian judul
-                common_nav_terms = ["daftar", "list", "proyek", "genre", "home", "beranda"]
-                is_common_nav = any(term in instruction for term in common_nav_terms)
+                # --- LOGIKA BARU YANG DISEMPURNAKAN ---
+                search_keyword = None
+                if "cari" in instruction:
+                    search_keyword = "cari"
+                elif "search" in instruction:
+                    search_keyword = "search"
 
-                if is_common_nav and not stay_on_results_page:
-                    # Navigasi link biasa
-                    html = driver.page_source
-                    links = extract_links(current_url, html)
-                    chosen_url = ask_gemini_to_choose_link(links, instruction)
-                    if chosen_url:
-                        driver.get(chosen_url)
-                        time.sleep(2)
-                        print(f"{Colors.OKGREEN}✅ Navigasi berhasil ke: {driver.current_url}{Colors.ENDC}")
-                    else:
-                        print(f"{Colors.FAIL}❌ AI tidak dapat menemukan link yang cocok.{Colors.ENDC}")
+                if search_keyword:
+                    # Perintah eksplisit untuk mencari, akan berhenti di halaman hasil
+                    query = instruction.split(search_keyword, 1)[1].strip()
+                    perform_search(driver, query, stay_on_results_page=True)
                 else:
-                    # Ini adalah perintah pencarian (baik langsung atau tidak)
-                    query = instruction.replace("cari", "").replace("ke", "").strip()
-                    perform_search(driver, query, stay_on_results_page)
+                    # Perintah implisit (navigasi menu atau langsung ke judul)
+                    common_nav_terms = ["daftar", "list", "proyek", "genre", "home", "beranda", "project"]
+                    is_common_nav = any(term in instruction for term in common_nav_terms)
+
+                    if is_common_nav:
+                        # Navigasi link biasa ke menu
+                        html = driver.page_source
+                        links = extract_links(current_url, html)
+                        chosen_url = ask_gemini_to_choose_link(links, instruction)
+                        if chosen_url:
+                            driver.get(chosen_url)
+                            time.sleep(2)
+                            print(f"{Colors.OKGREEN}✅ Navigasi berhasil ke: {driver.current_url}{Colors.ENDC}")
+                        else:
+                            print(f"{Colors.FAIL}❌ AI tidak dapat menemukan link yang cocok.{Colors.ENDC}")
+                    else:
+                        # Perintah langsung ke judul komik
+                        query = instruction.replace("ke", "").strip()
+                        perform_search(driver, query, stay_on_results_page=False)
 
             elif user_input == "scrape":
                 comic_data = scrape_comic_details_with_ai(driver.current_url, driver.page_source)
