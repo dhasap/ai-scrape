@@ -79,7 +79,8 @@ def extract_links(base_url: str, html_content: str) -> list[dict]:
 def ask_gemini_to_choose_link(links: list[dict], user_prompt: str) -> str:
     """Meminta Gemini untuk memilih link terbaik berdasarkan instruksi user."""
     if not links: return ""
-    max_links = 150
+    # Batas link diubah sesuai permintaan
+    max_links = 350
     if len(links) > max_links:
         print(f"{Colors.WARNING}Peringatan: Jumlah link terlalu banyak ({len(links)}). Dibatasi menjadi {max_links} link pertama.{Colors.ENDC}")
         links = links[:max_links]
@@ -106,64 +107,34 @@ def scrape_comic_details_with_ai(url: str, html_content: str) -> dict:
     """
     print(f"\n{Colors.OKBLUE}🤖 Menganalisis struktur halaman dengan AI... Ini mungkin butuh beberapa saat.{Colors.ENDC}")
     
-    # Membersihkan HTML untuk mengurangi token dan fokus pada konten utama
     soup = BeautifulSoup(html_content, 'html.parser')
     for tag in soup(['script', 'style', 'header', 'footer', 'nav', 'form']):
         tag.decompose()
     clean_html = soup.get_text(separator='\n', strip=True)
     
-    # Membatasi panjang HTML untuk menghindari error token limit
     max_length = 25000 
     if len(clean_html) > max_length:
         clean_html = clean_html[:max_length]
 
     prompt = f"""
-    Anda adalah seorang ahli web scraping yang sangat cerdas.
-    Tugas Anda adalah menganalisis potongan teks HTML dari sebuah halaman web detail komik dan mengekstrak informasi berikut:
-    1.  'judul': Judul utama komik.
-    2.  'sinopsis': Deskripsi atau ringkasan cerita.
-    3.  'genre': Daftar genre yang terkait dengan komik (dalam bentuk array of strings).
-    4.  'details': Informasi tambahan seperti Author, Status, Type, dll (dalam bentuk object key-value).
-    5.  'rating': Rating atau skor komik jika ada.
-    6.  'daftar_chapter': Daftar semua chapter yang tersedia. Setiap chapter harus menjadi object dengan key 'chapter' (nama/nomor chapter) dan 'tanggal_rilis' jika ada.
-
-    Analisis teks HTML berikut dengan cermat:
+    Anda adalah seorang ahli web scraping. Analisis teks HTML dari halaman detail komik berikut dan ekstrak informasi ini:
+    1. 'judul', 2. 'sinopsis', 3. 'genre' (array of strings), 4. 'details' (object key-value seperti Author, Status, dll), 5. 'rating', 6. 'daftar_chapter' (array of objects, setiap object punya 'chapter' dan 'tanggal_rilis').
+    Berikan jawaban HANYA dalam format JSON yang valid.
     --- HTML TEXT ---
     {clean_html}
     --- END HTML TEXT ---
-
-    Berikan jawaban HANYA dalam format JSON yang valid dan rapi. Jangan menyertakan penjelasan atau teks tambahan apapun di luar JSON.
-    Contoh format JSON yang diinginkan:
-    {{
-      "judul": "Contoh Judul Komik",
-      "sinopsis": "Ini adalah sinopsis dari komik tersebut...",
-      "genre": ["Action", "Fantasy", "Adventure"],
-      "details": {{
-        "status": "Ongoing",
-        "author": "Nama Author"
-      }},
-      "rating": "9.5",
-      "daftar_chapter": [
-        {{ "chapter": "Chapter 10", "tanggal_rilis": "25 Agustus 2025" }},
-        {{ "chapter": "Chapter 9", "tanggal_rilis": "18 Agustus 2025" }}
-      ]
-    }}
     """
 
     try:
         response = MODEL.generate_content(prompt)
-        # Membersihkan output dari Gemini untuk memastikan itu adalah JSON yang valid
         json_text = response.text.strip().replace("```json", "").replace("```", "")
         data = json.loads(json_text)
-        data['url_sumber'] = url # Menambahkan URL sumber secara manual
+        data['url_sumber'] = url
         print(f"{Colors.OKGREEN}✅ AI berhasil menganalisis dan mengekstrak data!{Colors.ENDC}")
         return data
-    except json.JSONDecodeError:
-        print(f"{Colors.FAIL}❌ AI mengembalikan format yang tidak valid. Gagal mem-parsing JSON.{Colors.ENDC}")
-        return {'error': 'AI gagal memproses struktur halaman ini.'}
     except Exception as e:
         print(f"{Colors.FAIL}❌ Terjadi error saat AI menganalisis halaman: {e}{Colors.ENDC}")
-        return {'error': f'Terjadi kesalahan internal saat AI bekerja: {e}'}
+        return {'error': f'AI gagal memproses halaman ini.'}
 
 
 def save_to_json(data: dict):
@@ -173,30 +144,52 @@ def save_to_json(data: dict):
             json.dump(data, f, ensure_ascii=False, indent=4)
         print(f"\n{Colors.OKGREEN}💾 Data berhasil disimpan ke file: {filename}{Colors.ENDC}")
 
-def perform_search(driver, query: str):
-    """Menggunakan Selenium untuk mengetik di kolom pencarian dan submit secara robust."""
-    print(f"{Colors.OKBLUE}🤖 Mencoba melakukan pencarian untuk: '{query}'...{Colors.ENDC}")
+def perform_search(driver, query: str, stay_on_results_page: bool):
+    """
+    Melakukan pencarian. Jika stay_on_results_page=False, akan lanjut ke detail komik.
+    """
+    print(f"{Colors.OKBLUE}🤖 Melakukan pencarian untuk: '{query}'...{Colors.ENDC}")
     try:
         wait = WebDriverWait(driver, 10)
-        # Logika pencarian mungkin berbeda per website, ini untuk Komikcast
-        if "komikcast" in driver.current_url:
-            search_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.search_button")))
+        search_input_selector = "input[type='search'], input[type='text'][name*='s'], input.cari, .search-form .search-field"
+        
+        # Beberapa web butuh klik tombol dulu
+        try:
+            search_button = driver.find_element(By.CSS_SELECTOR, "a.search_button, button.search-button")
             search_button.click()
-            search_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".search-form .search-field")))
-        # Logika pencarian untuk Komiku
-        elif "komiku.asia" in driver.current_url:
-            search_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input.cari")))
-        else:
-            print(f"{Colors.WARNING}⚠️  Fungsi pencarian otomatis belum tentu berfungsi di website ini. Mencoba selector umum...{Colors.ENDC}")
-            # Mencoba selector input yang umum
-            search_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='search'], input[type='text'][name*='s'], input[type='text'][id*='search']")))
+            time.sleep(0.5)
+        except NoSuchElementException:
+            pass # Lanjut saja jika tidak ada tombol terpisah
 
+        search_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, search_input_selector)))
+        search_input.clear()
         search_input.send_keys(query)
         search_input.send_keys(Keys.RETURN)
         
-        time.sleep(3)
-        print(f"{Colors.OKGREEN}✅ Halaman hasil pencarian untuk '{query}' berhasil dimuat.{Colors.ENDC}")
-        return True
+        print(f"{Colors.OKGREEN}✅ Halaman hasil pencarian dimuat.{Colors.ENDC}")
+        time.sleep(2) # Tunggu hasil pencarian
+
+        if stay_on_results_page:
+            return True # Berhenti di sini sesuai permintaan
+
+        # --- LOGIKA BARU: LANJUT KE HALAMAN DETAIL ---
+        print(f"{Colors.OKBLUE}🤖 Menganalisis hasil pencarian untuk '{query}'...{Colors.ENDC}")
+        html = driver.page_source
+        links = extract_links(driver.current_url, html)
+        if not links:
+            print(f"{Colors.FAIL}❌ Tidak ada hasil yang ditemukan untuk '{query}'.{Colors.ENDC}")
+            return False
+
+        chosen_url = ask_gemini_to_choose_link(links, f"Pilih link yang paling cocok untuk judul '{query}'")
+        if chosen_url:
+            driver.get(chosen_url)
+            time.sleep(2)
+            print(f"{Colors.OKGREEN}✅ Navigasi berhasil ke halaman detail: {driver.current_url}{Colors.ENDC}")
+            return True
+        else:
+            print(f"{Colors.FAIL}❌ AI tidak bisa menentukan hasil terbaik dari pencarian.{Colors.ENDC}")
+            return False
+
     except TimeoutException:
         print(f"{Colors.FAIL}❌ Gagal melakukan pencarian. Elemen search tidak ditemukan.{Colors.ENDC}")
         return False
@@ -216,16 +209,14 @@ def display_banner():
   \___/ |_|\__,_|____/ \___/|_____|   \____\___/ \___/|_____|_| \_\
                                                                   
 {Colors.ENDC}
-{Colors.HEADER}{Colors.BOLD}📖 Universal AI Comic Scraper v3.0 🤖{Colors.ENDC}
-{Colors.OKCYAN}Sekarang dapat scrape dari website manapun!{Colors.ENDC}
+{Colors.HEADER}{Colors.BOLD}📖 Universal AI Comic Scraper v4.0 🤖{Colors.ENDC}
+{Colors.OKCYAN}Dengan logika pencarian cerdas!{Colors.ENDC}
     """
     print(banner)
 
 def main_cli():
     display_banner()
-    
     driver = setup_driver()
-    
     base_url = input(f"{Colors.WARNING}Masukkan URL utama website komik (cth: https://komikcast.lol): {Colors.ENDC}")
     if not base_url.startswith(('http://', 'https://')):
         base_url = 'https://' + base_url
@@ -239,10 +230,10 @@ def main_cli():
 
     print("\n" + "="*50)
     print(f"{Colors.BOLD}Perintah yang tersedia:{Colors.ENDC}")
-    print(f"  {Colors.OKGREEN}pergi [instruksi]{Colors.ENDC} - AI akan menavigasi/mencari sesuai instruksi.")
-    print("                      (Contoh: pergi ke daftar komik populer)")
-    print("                      (Contoh: pergi cari one punch man)")
-    print(f"  {Colors.OKGREEN}scrape{Colors.ENDC}              - Ambil detail dari halaman komik saat ini (Bisa semua web!).")
+    print(f"  {Colors.OKGREEN}pergi cari [judul]{Colors.ENDC} - Mencari komik dan berhenti di hasil pencarian.")
+    print(f"  {Colors.OKGREEN}pergi ke [judul]{Colors.ENDC}   - Langsung menuju ke halaman detail komik.")
+    print(f"  {Colors.OKGREEN}pergi [menu]{Colors.ENDC}      - Navigasi ke menu (e.g., pergi ke daftar komik).")
+    print(f"  {Colors.OKGREEN}scrape{Colors.ENDC}              - Ambil detail dari halaman saat ini (Bisa semua web!).")
     print(f"  {Colors.OKGREEN}url{Colors.ENDC}                 - Tampilkan URL halaman saat ini.")
     print(f"  {Colors.OKGREEN}keluar{Colors.ENDC}              - Keluar dari program.")
     print("="*50)
@@ -261,37 +252,31 @@ def main_cli():
                     print(f"{Colors.FAIL}Mohon berikan instruksi.{Colors.ENDC}")
                     continue
                 
-                search_keyword = ""
-                if "cari" in instruction:
-                    search_keyword = "cari"
-                elif "search" in instruction:
-                    search_keyword = "search"
+                # --- LOGIKA BARU: MEMBEDAKAN JENIS PERINTAH "PERGI" ---
+                stay_on_results_page = "cari" in instruction
+                
+                # Cek apakah ini perintah navigasi umum atau pencarian judul
+                common_nav_terms = ["daftar", "list", "proyek", "genre", "home", "beranda"]
+                is_common_nav = any(term in instruction for term in common_nav_terms)
 
-                if search_keyword:
-                    query = instruction.split(search_keyword, 1)[1].strip()
-                    if query:
-                        perform_search(driver, query)
-                    else:
-                        print(f"{Colors.FAIL}Mohon masukkan judul komik yang ingin dicari.{Colors.ENDC}")
-                else:
+                if is_common_nav and not stay_on_results_page:
+                    # Navigasi link biasa
                     html = driver.page_source
                     links = extract_links(current_url, html)
-                    if not links:
-                        print(f"{Colors.FAIL}Tidak ada link yang bisa ditemukan di halaman ini.{Colors.ENDC}")
-                        continue
-                    
                     chosen_url = ask_gemini_to_choose_link(links, instruction)
                     if chosen_url:
                         driver.get(chosen_url)
                         time.sleep(2)
                         print(f"{Colors.OKGREEN}✅ Navigasi berhasil ke: {driver.current_url}{Colors.ENDC}")
                     else:
-                        print(f"{Colors.FAIL}❌ AI tidak dapat menemukan link yang cocok dengan instruksi Anda.{Colors.ENDC}")
+                        print(f"{Colors.FAIL}❌ AI tidak dapat menemukan link yang cocok.{Colors.ENDC}")
+                else:
+                    # Ini adalah perintah pencarian (baik langsung atau tidak)
+                    query = instruction.replace("cari", "").replace("ke", "").strip()
+                    perform_search(driver, query, stay_on_results_page)
 
             elif user_input == "scrape":
-                # --- MENGGUNAKAN FUNGSI SCRAPE UNIVERSAL BARU ---
                 comic_data = scrape_comic_details_with_ai(driver.current_url, driver.page_source)
-                
                 if 'error' in comic_data:
                     print(f"{Colors.FAIL}❌ {comic_data['error']}{Colors.ENDC}")
                 else:
