@@ -169,17 +169,17 @@ def display_banner():
   \___/ |_|\__,_|____/ \___/|_____|   \____\___/ \___/|_____|_| \_\
                                                                   
 {Colors.ENDC}
-{Colors.HEADER}{Colors.BOLD}📖 AI Comic Scraper 🤖{Colors.ENDC}
+{Colors.HEADER}{Colors.BOLD}📖 AI Comic Scraper v2.1 🤖{Colors.ENDC}
 {Colors.OKCYAN}Ditenagai oleh Google Gemini & Selenium{Colors.ENDC}
     """
     print(banner)
 
 def main_cli():
-    display_banner() # Menampilkan banner di awal
+    display_banner()
     
     driver = setup_driver()
     
-    base_url = input(f"{Colors.WARNING}Masukkan URL utama website komik (cth: https://komikcast.li): {Colors.ENDC}")
+    base_url = input(f"{Colors.WARNING}Masukkan URL utama website komik (cth: https://komikcast.lol): {Colors.ENDC}")
     if not base_url.startswith(('http://', 'https://')):
         base_url = 'https://' + base_url
     
@@ -214,10 +214,22 @@ def main_cli():
                     print(f"{Colors.FAIL}Mohon berikan instruksi.{Colors.ENDC}")
                     continue
                 
-                if "cari" in instruction or "search" in instruction:
-                    query = instruction.replace("cari", "").replace("search", "").strip()
-                    perform_search(driver, query)
+                # --- LOGIKA PENCARIAN YANG DIPERBAIKI ---
+                search_keyword = ""
+                if "cari" in instruction:
+                    search_keyword = "cari"
+                elif "search" in instruction:
+                    search_keyword = "search"
+
+                if search_keyword:
+                    # Ambil semua teks SETELAH kata kunci "cari" atau "search"
+                    query = instruction.split(search_keyword, 1)[1].strip()
+                    if query:
+                        perform_search(driver, query)
+                    else:
+                        print(f"{Colors.FAIL}Mohon masukkan judul komik yang ingin dicari.{Colors.ENDC}")
                 else:
+                    # Jika tidak ada kata kunci pencarian, lakukan navigasi link biasa
                     html = driver.page_source
                     links = extract_links(current_url, html)
                     if not links:
