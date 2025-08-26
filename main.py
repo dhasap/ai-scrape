@@ -1,4 +1,4 @@
-# main.py (v8.4 - Smart Wait Implementation)
+# main.py (v8.5 - Advanced Page Load Detection)
 import os
 import json
 import time
@@ -69,7 +69,7 @@ def print_header(driver):
     ascii_art = pyfiglet.figlet_format('DHANY SCRAPE', font='slant')
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
-    version_info = f"{Fore.GREEN}Versi 8.4{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 8.5{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
     
     print(f"{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
@@ -179,6 +179,10 @@ def execute_agent_loop(driver, goal):
             if action in ["type", "click"]:
                 ai_id = action_plan.get('ai_id')
                 selector = f"[data-ai-id='{ai_id}']"
+                
+                # Simpan referensi elemen halaman lama untuk mendeteksi perubahan
+                old_html_element = driver.find_element(By.TAG_NAME, "html")
+                
                 element = driver.find_element(By.CSS_SELECTOR, selector)
                 
                 if action == "type":
@@ -191,10 +195,12 @@ def execute_agent_loop(driver, goal):
                     print(f"🤖 Aksi: Mengklik elemen '{ai_id}'")
                     element.click()
                 
-                # --- PERBAIKAN KUNCI: SMART WAIT ---
-                # Tunggu hingga halaman baru selesai dimuat sebelum melanjutkan
-                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                time.sleep(1) # Buffer tambahan
+                # --- PERBAIKAN KUNCI: ADVANCED SMART WAIT ---
+                print("⏳ Menunggu halaman baru dimuat...")
+                WebDriverWait(driver, 15).until(
+                    EC.staleness_of(old_html_element)
+                )
+                print("✅ Halaman baru berhasil dimuat.")
 
             elif action == "scrape":
                 print(f"🤖 Aksi: Scraping detail dari halaman saat ini...")
