@@ -90,12 +90,12 @@ def print_header(driver):
     for line in art_lines:
         print(f"{Fore.BLUE}{Style.BRIGHT}║ {line.center(width - 2)} ║{Style.RESET_ALL}")
     print(f"{Fore.BLUE}{Style.BRIGHT}║{' ' * width}║{Style.RESET_ALL}")
-    print(f"{Fore.BLUE}{Style.BRIGHT}║{Style.NORMAL}{Fore.MAGENTA}{Style.BOLD}{tagline.center(width)}{Style.RESET_ALL}{Fore.BLUE}{Style.BRIGHT}║")
+    print(f"{Fore.BLUE}{Style.BRIGHT}║{Style.NORMAL}{Fore.MAGENTA}{Style.BRIGHT}{tagline.center(width)}{Style.RESET_ALL}{Fore.BLUE}{Style.BRIGHT}║")
     print(f"{Fore.BLUE}{Style.BRIGHT}║{version_info.center(width + 10)}{Fore.BLUE}{Style.BRIGHT}║") # Penyesuaian untuk panjang ANSI codes
     print(f"{Fore.BLUE}{Style.BRIGHT}╚{'═' * width}╝{Style.RESET_ALL}")
 
     if driver:
-        print(f"\n{Style.BOLD}📍 Lokasi Saat Ini:{Style.RESET_ALL} {Style.UNDERLINE}{driver.current_url}{Style.RESET_ALL}")
+        print(f"\n{Style.BRIGHT}📍 Lokasi Saat Ini:{Style.RESET_ALL} {Style.UNDERLINE}{driver.current_url}{Style.RESET_ALL}")
     print(f"{Fore.CYAN}{'═' * (width + 2)}{Style.RESET_ALL}")
 
 
@@ -198,7 +198,7 @@ def display_search_results(results, index):
     print(f"\n{Fore.GREEN}📖 Berikut adalah hasil pencarian:{Style.RESET_ALL}")
     end_index = min(index + 5, len(results))
     for i in range(index, end_index):
-        print(f"  {Style.BOLD}{i + 1}.{Style.RESET_ALL} {results[i]['title']}")
+        print(f"  {Style.BRIGHT}{i + 1}.{Style.RESET_ALL} {results[i]['title']}")
     has_more = end_index < len(results)
     if has_more:
         print(f"\n{Fore.CYAN}Pilih nomor atau ketik '6' untuk melihat 5 berikutnya.{Style.RESET_ALL}")
@@ -223,7 +223,7 @@ def main_cli():
         print_header(driver)
         
         if search_results:
-            print(f"{Style.BOLD}🔎 Opsi Hasil Pencarian:{Style.RESET_ALL}")
+            print(f"{Style.BRIGHT}🔎 Opsi Hasil Pencarian:{Style.RESET_ALL}")
             for i in range(search_results_index - 5, search_results_index):
                 if i < len(search_results):
                     print(f"  {Fore.GREEN}[{i + 1}] {search_results[i]['title'][:60]}{Style.RESET_ALL}")
@@ -232,7 +232,7 @@ def main_cli():
             print(f"  {Fore.YELLOW}[7] Lakukan pencarian baru{Style.RESET_ALL}")
             print(f"  {Fore.RED}[8] Keluar{Style.RESET_ALL}")
         else:
-            print(f"{Style.BOLD}MENU UTAMA:{Style.RESET_ALL}")
+            print(f"{Style.BRIGHT}MENU UTAMA:{Style.RESET_ALL}")
             print(f"  {Fore.CYAN}[1] 🔍 Cari Komik (dan tampilkan hasil){Style.RESET_ALL}")
             print(f"  {Fore.CYAN}[2] 🚀 Langsung ke Judul Komik{Style.RESET_ALL}")
             print(f"  {Fore.CYAN}[3] 🧭 Navigasi Menu (e.g., daftar komik){Style.RESET_ALL}")
@@ -240,7 +240,7 @@ def main_cli():
             print(f"  {Fore.RED}[5] 🚪 Keluar{Style.RESET_ALL}")
 
         print(f"{Fore.CYAN}{'═' * 74}{Style.RESET_ALL}")
-        choice = input(f"{Style.BOLD}{Fore.YELLOW}Pilih Opsi: {Style.RESET_ALL}")
+        choice = input(f"{Style.BRIGHT}{Fore.YELLOW}Pilih Opsi: {Style.RESET_ALL}")
 
         if search_results:
             if choice == '6' and has_more_results:
