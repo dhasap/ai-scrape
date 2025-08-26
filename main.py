@@ -1,4 +1,4 @@
-# main.py (v8.5 - Advanced Page Load Detection)
+# main.py (v8.6 - Resilient Agent)
 import os
 import json
 import time
@@ -69,7 +69,7 @@ def print_header(driver):
     ascii_art = pyfiglet.figlet_format('DHANY SCRAPE', font='slant')
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
-    version_info = f"{Fore.GREEN}Versi 8.5{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 8.6{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
     
     print(f"{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
@@ -167,7 +167,6 @@ def execute_agent_loop(driver, goal):
         print(f"\n{Style.BRIGHT}--- Langkah {step + 1}/{max_steps} ---{Style.RESET_ALL}")
         print(f"📍 Lokasi: {driver.current_url}")
 
-        # Labeli elemen dan buat peta
         html_with_ids = tag_interactive_elements(driver)
         soup = BeautifulSoup(html_with_ids, 'html.parser')
         element_map = get_element_map(soup)
@@ -179,10 +178,7 @@ def execute_agent_loop(driver, goal):
             if action in ["type", "click"]:
                 ai_id = action_plan.get('ai_id')
                 selector = f"[data-ai-id='{ai_id}']"
-                
-                # Simpan referensi elemen halaman lama untuk mendeteksi perubahan
                 old_html_element = driver.find_element(By.TAG_NAME, "html")
-                
                 element = driver.find_element(By.CSS_SELECTOR, selector)
                 
                 if action == "type":
@@ -195,11 +191,8 @@ def execute_agent_loop(driver, goal):
                     print(f"🤖 Aksi: Mengklik elemen '{ai_id}'")
                     element.click()
                 
-                # --- PERBAIKAN KUNCI: ADVANCED SMART WAIT ---
                 print("⏳ Menunggu halaman baru dimuat...")
-                WebDriverWait(driver, 15).until(
-                    EC.staleness_of(old_html_element)
-                )
+                WebDriverWait(driver, 15).until(EC.staleness_of(old_html_element))
                 print("✅ Halaman baru berhasil dimuat.")
 
             elif action == "scrape":
@@ -225,8 +218,11 @@ def execute_agent_loop(driver, goal):
                 print(f"{Fore.RED}❌ Aksi tidak dikenali: {action}{Style.RESET_ALL}")
                 return
         except Exception as e:
+            # --- PERBAIKAN KUNCI: JANGAN HENTIKAN LOOP ---
             print(f"{Fore.RED}Gagal melakukan aksi '{action}': {e}{Style.RESET_ALL}")
-            break
+            print(f"{Fore.YELLOW}Mencoba membuat rencana baru dari halaman saat ini...{Style.RESET_ALL}")
+            time.sleep(2) # Beri jeda sebelum mencoba lagi
+            continue # Lanjutkan ke iterasi loop berikutnya
             
     print(f"{Fore.YELLOW}⚠️ Agen mencapai batas langkah maksimum.{Style.RESET_ALL}")
 
