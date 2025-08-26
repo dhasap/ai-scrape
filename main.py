@@ -80,13 +80,13 @@ def print_header(driver):
     clear_screen()
     header = f"""
 {Style.BLUE}╔══════════════════════════════════════════════════════════════════════════════╗
-║{Style.BOLD}   ___   __  __ ___ ___ ___ _____   ____ ___  _   _ _____ ____    {Style.END}{Style.BLUE}║
-║{Style.BOLD}  / _ \ |  \/  | __/ __/ __|_   _| / ___/ _ \| | | | ____|  _ \   {Style.END}{Style.BLUE}║
-║{Style.BOLD} | | | || |\/| | _|\__ \__ \ | |  | |  | | | | | | |  _| | |_) |  {Style.END}{Style.BLUE}║
-║{Style.BOLD} | |_| || |  | |___|___/___/ | |  | |__| |_| | |_| | |___|  _ <   {Style.END}{Style.BLUE}║
-║{Style.BOLD}  \___/ |_|  |_|_|\____/____/ |_|   \____\___/ \___/|_____|_| \_\  {Style.END}{Style.BLUE}║
+║{Style.BOLD} ____  _   _    _    _   _ ____      ____  ____   _    ____   ____ ____  {Style.END}{Style.BLUE}║
+║{Style.BOLD}|  _ \| | | |  / \  | \ | |  _ \    / ___|/ ___| / \  |  _ \ / ___|  _ \ {Style.END}{Style.BLUE}║
+║{Style.BOLD}| | | | | | | / _ \ |  \| | | | |   \___ \\___ \/ _ \ | |_) | |   | |_) |{Style.END}{Style.BLUE}║
+║{Style.BOLD}| |_| | |_| |/ ___ \| |\  | |_| |    ___) |__) / ___ \|  __/| |___|  __/ {Style.END}{Style.BLUE}║
+║{Style.BOLD}|____/ \___//_/   \_\_| \_|____/   |____/____/_/   \_\_|    \____|_|    {Style.END}{Style.BLUE}║
 ║                                                                              ║
-║   {Style.PURPLE}{Style.BOLD}📖 Universal AI Comic Scraper v6.0 🤖{Style.END} {Style.BLUE}                                   ║
+║{' ' * 21}{Style.PURPLE}{Style.BOLD}😈 Dhany adalah Raja Iblis 👑{Style.END}{Style.BLUE}{' ' * 22}║
 ╚══════════════════════════════════════════════════════════════════════════════╝{Style.END}
     """
     print(header)
