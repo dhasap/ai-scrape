@@ -1,4 +1,4 @@
-# main.py (v8.3 - AI GPS Navigation)
+# main.py (v8.4 - Smart Wait Implementation)
 import os
 import json
 import time
@@ -15,6 +15,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 import pyfiglet
 from colorama import init, Fore, Style
@@ -67,7 +69,7 @@ def print_header(driver):
     ascii_art = pyfiglet.figlet_format('DHANY SCRAPE', font='slant')
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
-    version_info = f"{Fore.GREEN}Versi 8.3{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 8.4{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
     
     print(f"{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
@@ -104,7 +106,6 @@ def get_element_map(soup):
         if text:
             element_info["text"] = text
         
-        # Tambahkan atribut penting lainnya
         if tag == 'a' and el.has_attr('href'):
             element_info["href"] = el['href']
         if tag == 'input' and el.has_attr('placeholder'):
@@ -189,7 +190,11 @@ def execute_agent_loop(driver, goal):
                 elif action == "click":
                     print(f"🤖 Aksi: Mengklik elemen '{ai_id}'")
                     element.click()
-                time.sleep(3)
+                
+                # --- PERBAIKAN KUNCI: SMART WAIT ---
+                # Tunggu hingga halaman baru selesai dimuat sebelum melanjutkan
+                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+                time.sleep(1) # Buffer tambahan
 
             elif action == "scrape":
                 print(f"🤖 Aksi: Scraping detail dari halaman saat ini...")
