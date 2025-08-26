@@ -1,4 +1,4 @@
-# main.py (v8.9 - Robust Parsing Agent)
+# main.py (v9.0 - Scrolling Agent)
 import os
 import json
 import time
@@ -70,7 +70,7 @@ def print_header(driver):
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
     # --- PERUBAHAN: Memperbarui nomor versi ---
-    version_info = f"{Fore.GREEN}Versi 8.9{Style.RESET_ALL} | {Fore.CYAN}Robust Parsing Agent{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 9.0{Style.RESET_ALL} | {Fore.CYAN}Scrolling Agent{Style.RESET_ALL}"
     
     print(f"\n{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
@@ -143,7 +143,6 @@ def get_next_action_with_ai(goal, current_url, element_map):
     """
     try:
         response = MODEL.generate_content(prompt)
-        # --- PERUBAHAN: Memindahkan .strip() ke akhir untuk pembersihan yang lebih andal ---
         json_text = response.text.replace("```json", "").replace("```", "").strip()
         if not json_text.startswith('{'):
             return {'action': 'fail', 'reason': f'Respons AI tidak valid: {json_text}'}
@@ -156,15 +155,15 @@ def scrape_details_with_ai(goal, html_content):
     prompt = f"""
     Anda adalah ahli scraper. Tujuan scraping adalah: "{goal}".
     Dari HTML berikut, ekstrak semua informasi relevan (judul, author, genre, type, status, tanggal rilis, rating, sinopsis, daftar chapter) ke dalam format JSON yang konsisten.
+    Pastikan untuk mengekstrak SEMUA chapter yang tersedia.
     Jika informasi tidak ditemukan, gunakan null.
     HTML:
     ---
-    {html_content[:30000]}
+    {html_content[:40000]}
     ---
     """
     try:
         response = MODEL.generate_content(prompt)
-        # --- PERUBAHAN: Memindahkan .strip() ke akhir untuk pembersihan yang lebih andal ---
         json_text = response.text.replace("```json", "").replace("```", "").strip()
         if not json_text.startswith('{'):
              return {'error': f'AI gagal mengekstrak detail, respons tidak valid: {json_text}'}
@@ -216,15 +215,32 @@ def execute_agent_loop(driver, goal):
                 print("✅ Halaman baru berhasil dimuat.")
 
             elif action == "scrape":
+                # --- PERUBAHAN: Menambahkan simulasi scroll untuk memuat semua konten ---
+                print(f"🤖 Aksi: Mempersiapkan halaman untuk scraping (scrolling)...")
+                try:
+                    # Scroll ke bawah beberapa kali untuk memastikan semua konten lazy-load dimuat
+                    last_height = driver.execute_script("return document.body.scrollHeight")
+                    for _ in range(5): # Scroll hingga 5 kali, biasanya cukup
+                        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                        time.sleep(1.5) # Beri waktu konten untuk dimuat
+                        new_height = driver.execute_script("return document.body.scrollHeight")
+                        if new_height == last_height:
+                            print(" Mencapai dasar halaman.")
+                            break # Berhenti jika tinggi halaman tidak lagi bertambah
+                        last_height = new_height
+                    print("✅ Halaman siap, semua konten telah dimuat.")
+                except Exception as scroll_e:
+                    print(f"{Fore.YELLOW}⚠️ Gagal melakukan scroll, melanjutkan dengan konten yang ada: {scroll_e}{Style.RESET_ALL}")
+                
                 print(f"🤖 Aksi: Scraping detail dari halaman saat ini...")
                 final_data = run_with_loading(scrape_details_with_ai, goal, driver.page_source)
+                
                 if 'error' in final_data:
                     print(f"{Fore.RED}❌ {final_data['error']}{Style.RESET_ALL}")
                 else:
                     print(f"{Fore.GREEN}✅ Scraping Selesai!{Style.RESET_ALL}")
                     print(json.dumps(final_data, indent=2, ensure_ascii=False))
                     if input(f"{Fore.YELLOW}Simpan ke file JSON? (y/n): {Style.RESET_ALL}").lower() == 'y':
-                        # Membuat nama file yang lebih aman
                         safe_filename = "".join([c for c in goal if c.isalpha() or c.isdigit() or c.isspace()]).rstrip()
                         filename = safe_filename.replace(' ', '_').lower() + ".json"
                         with open(filename, 'w', encoding='utf-8') as f:
