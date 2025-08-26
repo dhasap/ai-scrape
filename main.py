@@ -1,4 +1,5 @@
-# main.py (v6.3 - Bug Fix)
+#!/usr/bin/env python3
+# main.py (v6.4 - Executable Script)
 import os
 import json
 import time
@@ -84,7 +85,7 @@ def print_header(driver):
     
     # Siapkan konten
     tagline = "😈 Dhany adalah Raja Iblis 👑"
-    version_info = f"{Fore.GREEN}Versi 6.3{Style.RESET_ALL} | {Fore.CYAN}Powered by dhasap{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 6.4{Style.RESET_ALL} | {Fore.CYAN}Powered by dhasap{Style.RESET_ALL}"
 
     # Cetak Header
     print(f"{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
@@ -209,6 +210,12 @@ def display_search_results(results, index):
 
 # --- FUNGSI UTAMA (MAIN LOOP) ---
 def main_cli():
+    # Pastikan kita berada di dalam virtual environment
+    if not hasattr(sys, 'real_prefix') and not (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+        print(f"{Fore.RED}Error: Harap aktifkan virtual environment terlebih dahulu.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Jalankan: source venv/bin/activate{Style.RESET_ALL}")
+        exit()
+
     driver = run_with_loading(setup_driver)
     if not driver: exit()
     
