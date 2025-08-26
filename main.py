@@ -1,4 +1,4 @@
-# main.py (v6.2 - Bug Fix)
+# main.py (v6.3 - Bug Fix)
 import os
 import json
 import time
@@ -38,6 +38,7 @@ MODEL = genai.GenerativeModel('gemini-1.5-flash')
 
 # --- FUNGSI TAMPILAN & ANIMASI ---
 LOADING_EVENT = threading.Event()
+UNDERLINE = '\033[4m' # Definisi manual untuk garis bawah
 
 def clear_screen():
     """Membersihkan layar terminal."""
@@ -83,7 +84,7 @@ def print_header(driver):
     
     # Siapkan konten
     tagline = "😈 Dhany adalah Raja Iblis 👑"
-    version_info = f"{Fore.GREEN}Versi 6.2{Style.RESET_ALL} | {Fore.CYAN}Powered by dhasap{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 6.3{Style.RESET_ALL} | {Fore.CYAN}Powered by dhasap{Style.RESET_ALL}"
 
     # Cetak Header
     print(f"{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
@@ -95,7 +96,7 @@ def print_header(driver):
     print(f"{Fore.BLUE}{Style.BRIGHT}╚{'═' * width}╝{Style.RESET_ALL}")
 
     if driver:
-        print(f"\n{Style.BRIGHT}📍 Lokasi Saat Ini:{Style.RESET_ALL} {Style.UNDERLINE}{driver.current_url}{Style.RESET_ALL}")
+        print(f"\n{Style.BRIGHT}📍 Lokasi Saat Ini:{Style.RESET_ALL} {UNDERLINE}{driver.current_url}{Style.RESET_ALL}")
     print(f"{Fore.CYAN}{'═' * (width + 2)}{Style.RESET_ALL}")
 
 
@@ -213,7 +214,6 @@ def main_cli():
     
     print_header(None)
     base_url = input(f"{Fore.YELLOW}🔗 Masukkan URL utama website komik: {Style.RESET_ALL}")
-    # --- PERBAIKAN BUG ---
     if not base_url.startswith(('http://', 'https://')):
         base_url = 'https://' + base_url
     run_with_loading(driver.get, base_url)
