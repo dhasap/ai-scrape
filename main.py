@@ -1,4 +1,4 @@
-# main.py (v6.1 - Modern Header)
+# main.py (v6.2 - Bug Fix)
 import os
 import json
 import time
@@ -83,7 +83,7 @@ def print_header(driver):
     
     # Siapkan konten
     tagline = "😈 Dhany adalah Raja Iblis 👑"
-    version_info = f"{Fore.GREEN}Versi 6.1{Style.RESET_ALL} | {Fore.CYAN}Powered by dhasap{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 6.2{Style.RESET_ALL} | {Fore.CYAN}Powered by dhasap{Style.RESET_ALL}"
 
     # Cetak Header
     print(f"{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
@@ -213,8 +213,9 @@ def main_cli():
     
     print_header(None)
     base_url = input(f"{Fore.YELLOW}🔗 Masukkan URL utama website komik: {Style.RESET_ALL}")
+    # --- PERBAIKAN BUG ---
     if not base_url.startswith(('http://', 'https://')):
-        base_url = 'https' + base_url
+        base_url = 'https://' + base_url
     run_with_loading(driver.get, base_url)
 
     search_results, search_results_index, has_more_results = [], 0, False
