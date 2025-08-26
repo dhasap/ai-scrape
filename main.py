@@ -1,4 +1,4 @@
-# main.py (v8.8 - Smarter Decision Agent)
+# main.py (v8.9 - Robust Parsing Agent)
 import os
 import json
 import time
@@ -70,7 +70,7 @@ def print_header(driver):
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
     # --- PERUBAHAN: Memperbarui nomor versi ---
-    version_info = f"{Fore.GREEN}Versi 8.8{Style.RESET_ALL} | {Fore.CYAN}Smarter Decision Agent{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 8.9{Style.RESET_ALL} | {Fore.CYAN}Robust Parsing Agent{Style.RESET_ALL}"
     
     print(f"\n{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
@@ -117,7 +117,6 @@ def get_element_map(soup):
 
 def get_next_action_with_ai(goal, current_url, element_map):
     """AI menentukan langkah berikutnya berdasarkan 'peta' elemen yang sudah dilabeli."""
-    # --- PERUBAHAN: Prompt dibuat lebih cerdas ---
     prompt = f"""
     Anda adalah otak dari agen web scraper otonom yang sangat cerdas.
     Tujuan akhir Anda: "{goal}"
@@ -144,8 +143,8 @@ def get_next_action_with_ai(goal, current_url, element_map):
     """
     try:
         response = MODEL.generate_content(prompt)
-        # Menambahkan penanganan jika respons AI tidak valid
-        json_text = response.text.strip().replace("```json", "").replace("```", "")
+        # --- PERUBAHAN: Memindahkan .strip() ke akhir untuk pembersihan yang lebih andal ---
+        json_text = response.text.replace("```json", "").replace("```", "").strip()
         if not json_text.startswith('{'):
             return {'action': 'fail', 'reason': f'Respons AI tidak valid: {json_text}'}
         return json.loads(json_text)
@@ -165,7 +164,8 @@ def scrape_details_with_ai(goal, html_content):
     """
     try:
         response = MODEL.generate_content(prompt)
-        json_text = response.text.strip().replace("```json", "").replace("```", "")
+        # --- PERUBAHAN: Memindahkan .strip() ke akhir untuk pembersihan yang lebih andal ---
+        json_text = response.text.replace("```json", "").replace("```", "").strip()
         if not json_text.startswith('{'):
              return {'error': f'AI gagal mengekstrak detail, respons tidak valid: {json_text}'}
         return json.loads(json_text)
