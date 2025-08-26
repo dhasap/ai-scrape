@@ -41,7 +41,7 @@ class Colors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-# --- FUNGSI BARU: SETUP SELENIUM DRIVER ---
+# --- FUNGSI SETUP DRIVER (DIPERBARUI UNTUK CHROMEBOOK) ---
 def setup_driver():
     """Menyiapkan instance browser Chrome untuk dikontrol Selenium."""
     print(f"{Colors.OKCYAN}🔧 Menyiapkan browser virtual (Selenium)...{Colors.ENDC}")
@@ -52,7 +52,10 @@ def setup_driver():
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     
     try:
-        service = Service() 
+        # --- PERUBAHAN KUNCI ---
+        # Secara eksplisit menunjuk ke path chromedriver yang diinstal via apt
+        # Ini lebih stabil untuk lingkungan Chromebook/Linux
+        service = Service(executable_path='/usr/bin/chromedriver') 
         driver = webdriver.Chrome(service=service, options=options)
         print(f"{Colors.OKGREEN}✅ Browser virtual siap.{Colors.ENDC}")
         return driver
@@ -273,8 +276,12 @@ def main_cli():
                     continue
                 
                 # Reset state pencarian jika ada navigasi baru
-                search_results = []
-                search_results_index = 0
+                search_results_cleared = False
+                if not instruction.isdigit():
+                    search_results = []
+                    search_results_index = 0
+                    search_results_cleared = True
+
 
                 search_keyword = None
                 if "cari" in instruction:
