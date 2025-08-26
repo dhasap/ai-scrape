@@ -1,9 +1,10 @@
-# main.py (v8.0 - Autonomous Agent)
+# main.py (v8.1 - Bug Fix & Workflow Improvement)
 import os
 import json
 import time
 import sys
 import threading
+import re # <-- BUG FIX: Modul 're' sekarang di-import
 from urllib.parse import urljoin
 
 import google.generativeai as genai
@@ -61,12 +62,12 @@ def run_with_loading(target_func, *args, **kwargs):
         animation_thread.join()
     return result
 
-def print_header():
+def print_header(driver):
     os.system('cls' if os.name == 'nt' else 'clear')
     ascii_art = pyfiglet.figlet_format('DHANY SCRAPE', font='slant')
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
-    version_info = f"{Fore.GREEN}Versi 8.0{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 8.1{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
     
     print(f"{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
@@ -75,7 +76,8 @@ def print_header():
     print(f"{Fore.BLUE}{Style.BRIGHT}║{Style.NORMAL}{Fore.MAGENTA}{Style.BRIGHT}{tagline.center(width)}{Style.RESET_ALL}{Fore.BLUE}{Style.BRIGHT}║")
     print(f"{Fore.BLUE}{Style.BRIGHT}║{version_info.center(width + 10)}{Fore.BLUE}{Style.BRIGHT}║")
     print(f"{Fore.BLUE}{Style.BRIGHT}╚{'═' * width}╝{Style.RESET_ALL}")
-    print(f"\n{Fore.YELLOW}Contoh: 'Scrape semua info Solo Leveling di komikcast'{Style.RESET_ALL}")
+    if driver:
+        print(f"\n{Style.BRIGHT}📍 Lokasi Saat Ini:{Style.RESET_ALL} {UNDERLINE}{driver.current_url}{Style.RESET_ALL}")
     print(f"{Fore.CYAN}{'═' * (width + 2)}{Style.RESET_ALL}")
 
 # --- OTAK AI: PERENCANA AKSI ---
@@ -199,27 +201,35 @@ def execute_agent_loop(driver, goal):
 def main():
     driver = None
     try:
-        print_header()
+        print_header(None) # Menampilkan header awal tanpa driver
         driver = setup_driver()
         if not driver: exit()
         
+        # --- WORKFLOW DIPERBAIKI: Minta URL di awal ---
+        start_url = input(f"{Fore.YELLOW}🔗 Masukkan URL awal untuk memulai (e.g., https://komikcast.li): {Style.RESET_ALL}")
+        if not start_url.startswith(('http://', 'https://')):
+            start_url = 'https://' + start_url
+        
+        print(f"Memulai dari: {start_url}")
+        driver.get(start_url)
+        time.sleep(2)
+
         while True:
-            print("")
+            print_header(driver) # Tampilkan header dengan URL saat ini
             user_goal = input(f"{Style.BRIGHT}{Fore.MAGENTA}DHANY SCRAPE > {Style.RESET_ALL}")
             if user_goal.lower() in ['keluar', 'exit', 'quit']:
                 break
             if not user_goal:
                 continue
             
-            # Ekstrak URL awal jika ada, jika tidak, mulai dari halaman default
+            # Ekstrak URL dari perintah jika ada, untuk menimpa URL saat ini
             match = re.search(r'https?://[^\s]+', user_goal)
-            start_url = "https://google.com" # Fallback jika tidak ada URL
             if match:
-                start_url = match.group(0)
-            
-            print(f"Memulai dari: {start_url}")
-            driver.get(start_url)
-            time.sleep(2)
+                new_url = match.group(0)
+                if new_url != driver.current_url:
+                    print(f"Mengganti lokasi ke: {new_url}")
+                    driver.get(new_url)
+                    time.sleep(2)
 
             execute_agent_loop(driver, user_goal)
             print(f"\n{Fore.CYAN}{'═' * 74}{Style.RESET_ALL}")
