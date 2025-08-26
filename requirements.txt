@@ -2,3 +2,5 @@ requests
 beautifulsoup4
 google-generativeai
 selenium
+pyfiglet
+colorama
