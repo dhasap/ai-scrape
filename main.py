@@ -1,4 +1,4 @@
-# main.py (v9.0 - Scrolling Agent)
+# main.py (v9.1 - Schema Guided Agent)
 import os
 import json
 import time
@@ -70,7 +70,7 @@ def print_header(driver):
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
     # --- PERUBAHAN: Memperbarui nomor versi ---
-    version_info = f"{Fore.GREEN}Versi 9.0{Style.RESET_ALL} | {Fore.CYAN}Scrolling Agent{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 9.1{Style.RESET_ALL} | {Fore.CYAN}Schema Guided Agent{Style.RESET_ALL}"
     
     print(f"\n{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
@@ -152,12 +152,43 @@ def get_next_action_with_ai(goal, current_url, element_map):
 
 def scrape_details_with_ai(goal, html_content):
     """AI mengekstrak semua data detail dari halaman final."""
+    # --- PERUBAHAN: Prompt dibuat lebih spesifik dengan contoh format ---
     prompt = f"""
-    Anda adalah ahli scraper. Tujuan scraping adalah: "{goal}".
-    Dari HTML berikut, ekstrak semua informasi relevan (judul, author, genre, type, status, tanggal rilis, rating, sinopsis, daftar chapter) ke dalam format JSON yang konsisten.
-    Pastikan untuk mengekstrak SEMUA chapter yang tersedia.
-    Jika informasi tidak ditemukan, gunakan null.
-    HTML:
+    Anda adalah ahli scraper yang sangat teliti. Tujuan scraping adalah: "{goal}".
+    Dari HTML berikut, ekstrak semua informasi relevan ke dalam format JSON yang VALID dan KONSISTEN.
+
+    --- CONTOH FORMAT JSON YANG DIINGINKAN ---
+    {{
+      "title": "Judul Komik",
+      "author": "Nama Author",
+      "genre": ["Genre 1", "Genre 2"],
+      "type": "Tipe Komik (e.g., Manhwa)",
+      "status": "Status (e.g., Ongoing)",
+      "release_date": "Tanggal Rilis",
+      "rating": "Skor Rating",
+      "synopsis": "Paragraf sinopsis...",
+      "chapters": [
+        {{
+          "chapter_title": "Chapter 1",
+          "release_date": "Tanggal Rilis Chapter",
+          "url": "https://url-ke-chapter.com"
+        }},
+        {{
+          "chapter_title": "Chapter 2",
+          "release_date": "Tanggal Rilis Chapter",
+          "url": "https://url-ke-chapter.com"
+        }}
+      ]
+    }}
+    -----------------------------------------
+
+    ATURAN PENTING:
+    1. Ikuti format contoh di atas dengan SANGAT TELITI.
+    2. Pastikan JSON yang Anda hasilkan 100% valid. Perhatikan penggunaan koma (`,`) di antara item dalam daftar `chapters`.
+    3. Ekstrak SEMUA chapter yang tersedia dalam HTML.
+    4. Jika suatu informasi tidak dapat ditemukan, gunakan `null` sebagai nilainya.
+
+    HTML untuk di-scrape:
     ---
     {html_content[:40000]}
     ---
@@ -215,18 +246,16 @@ def execute_agent_loop(driver, goal):
                 print("✅ Halaman baru berhasil dimuat.")
 
             elif action == "scrape":
-                # --- PERUBAHAN: Menambahkan simulasi scroll untuk memuat semua konten ---
                 print(f"🤖 Aksi: Mempersiapkan halaman untuk scraping (scrolling)...")
                 try:
-                    # Scroll ke bawah beberapa kali untuk memastikan semua konten lazy-load dimuat
                     last_height = driver.execute_script("return document.body.scrollHeight")
-                    for _ in range(5): # Scroll hingga 5 kali, biasanya cukup
+                    for _ in range(5):
                         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                        time.sleep(1.5) # Beri waktu konten untuk dimuat
+                        time.sleep(1.5)
                         new_height = driver.execute_script("return document.body.scrollHeight")
                         if new_height == last_height:
                             print(" Mencapai dasar halaman.")
-                            break # Berhenti jika tinggi halaman tidak lagi bertambah
+                            break
                         last_height = new_height
                     print("✅ Halaman siap, semua konten telah dimuat.")
                 except Exception as scroll_e:
