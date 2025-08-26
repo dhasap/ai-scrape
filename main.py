@@ -1,10 +1,10 @@
-# main.py (v8.1 - Bug Fix & Workflow Improvement)
+# main.py (v8.2 - Improved AI Vision)
 import os
 import json
 import time
 import sys
 import threading
-import re # <-- BUG FIX: Modul 're' sekarang di-import
+import re
 from urllib.parse import urljoin
 
 import google.generativeai as genai
@@ -67,7 +67,7 @@ def print_header(driver):
     ascii_art = pyfiglet.figlet_format('DHANY SCRAPE', font='slant')
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
-    version_info = f"{Fore.GREEN}Versi 8.1{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 8.2{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
     
     print(f"{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
@@ -81,14 +81,28 @@ def print_header(driver):
     print(f"{Fore.CYAN}{'═' * (width + 2)}{Style.RESET_ALL}")
 
 # --- OTAK AI: PERENCANA AKSI ---
-def get_next_action_with_ai(goal, current_url, clean_html):
-    """AI menentukan langkah berikutnya untuk mencapai tujuan."""
+def get_interactive_elements(soup):
+    """Mengekstrak elemen interaktif (links, inputs, buttons) dari HTML."""
+    elements = []
+    # Ekstrak links
+    for a in soup.find_all('a', href=True):
+        text = a.get_text(strip=True)
+        if text:
+            elements.append({"tag": "a", "text": text, "attributes": {"href": a['href']}})
+    # Ekstrak inputs
+    for i in soup.find_all('input'):
+        attrs = {key: i[key] for key in i.attrs}
+        elements.append({"tag": "input", "attributes": attrs})
+    return elements
+
+def get_next_action_with_ai(goal, current_url, interactive_elements):
+    """AI menentukan langkah berikutnya berdasarkan 'peta' elemen interaktif."""
     prompt = f"""
     Anda adalah otak dari agen web scraper otonom.
     Tujuan akhir Anda: "{goal}"
     Posisi Anda saat ini: "{current_url}"
 
-    Tugas Anda adalah menentukan SATU langkah berikutnya yang paling efisien.
+    Tugas Anda adalah menentukan SATU langkah berikutnya yang paling efisien berdasarkan "peta elemen" di bawah ini.
     Pilih salah satu dari aksi berikut dan kembalikan dalam format JSON:
     1. {{ "action": "type", "selector": "CSS_SELECTOR", "text": "TEKS_UNTUK_DIKETIK" }}: Jika Anda perlu mengetik di kolom pencarian.
     2. {{ "action": "click", "selector": "CSS_SELECTOR" }}: Jika Anda perlu mengklik link atau tombol untuk lebih dekat ke tujuan.
@@ -96,12 +110,12 @@ def get_next_action_with_ai(goal, current_url, clean_html):
     4. {{ "action": "finish", "data": "Tujuan tercapai." }}: Jika tugas sudah selesai.
     5. {{ "action": "fail", "reason": "ALASAN_GAGAL" }}: Jika Anda buntu atau tidak bisa menemukan informasi.
 
-    Gunakan selector CSS yang umum dan andal.
-    HTML halaman saat ini (disederhanakan):
+    Untuk membuat CSS Selector, gunakan informasi dari peta elemen. Contoh: untuk link dengan teks 'Solo Leveling', selectornya bisa 'a:contains("Solo Leveling")' atau lebih spesifik.
+    Peta Elemen Interaktif di Halaman Saat Ini:
     ---
-    {clean_html[:15000]}
+    {json.dumps(interactive_elements[:100], indent=2)}
     ---
-    Berdasarkan tujuan dan HTML di atas, tentukan langkah berikutnya.
+    Berdasarkan tujuan dan peta elemen di atas, tentukan langkah berikutnya.
     """
     try:
         response = MODEL.generate_content(prompt)
@@ -130,69 +144,75 @@ def scrape_details_with_ai(goal, html_content):
 # --- EKSEKUTOR AKSI ---
 def execute_agent_loop(driver, goal):
     """Menjalankan loop agen otonom hingga tujuan tercapai."""
-    max_steps = 10  # Mencegah loop tak terbatas
+    max_steps = 10
     for step in range(max_steps):
         print(f"\n{Style.BRIGHT}--- Langkah {step + 1}/{max_steps} ---{Style.RESET_ALL}")
         print(f"📍 Lokasi: {driver.current_url}")
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        for tag in soup(['script', 'style', 'header', 'footer', 'nav']):
-            tag.decompose()
-        clean_html = soup.get_text(separator='\n', strip=True)
+        interactive_elements = get_interactive_elements(soup)
 
-        action_plan = run_with_loading(get_next_action_with_ai, goal, driver.current_url, clean_html)
+        action_plan = run_with_loading(get_next_action_with_ai, goal, driver.current_url, interactive_elements)
         action = action_plan.get('action')
 
-        if action == "type":
-            selector = action_plan.get('selector')
-            text = action_plan.get('text')
-            print(f"🤖 Aksi: Mengetik '{text}' pada '{selector}'")
-            try:
+        try:
+            if action == "type":
+                selector = action_plan.get('selector')
+                text = action_plan.get('text')
+                print(f"🤖 Aksi: Mengetik '{text}' pada '{selector}'")
                 element = driver.find_element(By.CSS_SELECTOR, selector)
                 element.clear()
                 element.send_keys(text)
                 element.send_keys(Keys.RETURN)
                 time.sleep(3)
-            except Exception as e:
-                print(f"{Fore.RED}Gagal melakukan aksi 'type': {e}{Style.RESET_ALL}")
-                break
 
-        elif action == "click":
-            selector = action_plan.get('selector')
-            print(f"🤖 Aksi: Mengklik elemen '{selector}'")
-            try:
-                driver.find_element(By.CSS_SELECTOR, selector).click()
+            elif action == "click":
+                selector = action_plan.get('selector')
+                print(f"🤖 Aksi: Mengklik elemen '{selector}'")
+                # Selenium tidak mendukung :contains, jadi kita cari manual
+                if ':contains' in selector:
+                    text_to_find = re.search(r':contains\("(.+?)"\)', selector).group(1)
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector.split(':')[0])
+                    found = False
+                    for el in elements:
+                        if text_to_find in el.text:
+                            el.click()
+                            found = True
+                            break
+                    if not found: raise Exception(f"Elemen dengan teks '{text_to_find}' tidak ditemukan")
+                else:
+                    driver.find_element(By.CSS_SELECTOR, selector).click()
                 time.sleep(3)
-            except Exception as e:
-                print(f"{Fore.RED}Gagal melakukan aksi 'click': {e}{Style.RESET_ALL}")
-                break
 
-        elif action == "scrape":
-            print(f"🤖 Aksi: Scraping detail dari halaman saat ini...")
-            final_data = run_with_loading(scrape_details_with_ai, goal, driver.page_source)
-            if 'error' in final_data:
-                print(f"{Fore.RED}❌ {final_data['error']}{Style.RESET_ALL}")
+            elif action == "scrape":
+                print(f"🤖 Aksi: Scraping detail dari halaman saat ini...")
+                final_data = run_with_loading(scrape_details_with_ai, goal, driver.page_source)
+                if 'error' in final_data:
+                    print(f"{Fore.RED}❌ {final_data['error']}{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.GREEN}✅ Scraping Selesai!{Style.RESET_ALL}")
+                    print(json.dumps(final_data, indent=2, ensure_ascii=False))
+                    if input(f"{Fore.YELLOW}Simpan ke file JSON? (y/n): {Style.RESET_ALL}").lower() == 'y':
+                        filename = goal.split(' ')[-1].lower() + ".json"
+                        with open(filename, 'w', encoding='utf-8') as f:
+                            json.dump(final_data, f, ensure_ascii=False, indent=4)
+                        print(f"{Fore.GREEN}💾 Data berhasil disimpan ke: {filename}{Style.RESET_ALL}")
+                return
+
+            elif action == "finish":
+                print(f"{Fore.GREEN}✅ Tujuan tercapai: {action_plan.get('data')}{Style.RESET_ALL}")
+                return
+
+            elif action == "fail":
+                print(f"{Fore.RED}❌ Agen gagal: {action_plan.get('reason')}{Style.RESET_ALL}")
+                return
+
             else:
-                print(f"{Fore.GREEN}✅ Scraping Selesai!{Style.RESET_ALL}")
-                print(json.dumps(final_data, indent=2, ensure_ascii=False))
-                if input(f"{Fore.YELLOW}Simpan ke file JSON? (y/n): {Style.RESET_ALL}").lower() == 'y':
-                    filename = goal.split(' ')[-1].lower() + ".json"
-                    with open(filename, 'w', encoding='utf-8') as f:
-                        json.dump(final_data, f, ensure_ascii=False, indent=4)
-                    print(f"{Fore.GREEN}💾 Data berhasil disimpan ke: {filename}{Style.RESET_ALL}")
-            return # Keluar dari loop setelah scraping
-
-        elif action == "finish":
-            print(f"{Fore.GREEN}✅ Tujuan tercapai: {action_plan.get('data')}{Style.RESET_ALL}")
-            return
-
-        elif action == "fail":
-            print(f"{Fore.RED}❌ Agen gagal: {action_plan.get('reason')}{Style.RESET_ALL}")
-            return
-
-        else:
-            print(f"{Fore.RED}❌ Aksi tidak dikenali: {action}{Style.RESET_ALL}")
-            return
+                print(f"{Fore.RED}❌ Aksi tidak dikenali: {action}{Style.RESET_ALL}")
+                return
+        except Exception as e:
+            print(f"{Fore.RED}Gagal melakukan aksi '{action}': {e}{Style.RESET_ALL}")
+            break
             
     print(f"{Fore.YELLOW}⚠️ Agen mencapai batas langkah maksimum.{Style.RESET_ALL}")
 
@@ -201,11 +221,10 @@ def execute_agent_loop(driver, goal):
 def main():
     driver = None
     try:
-        print_header(None) # Menampilkan header awal tanpa driver
+        print_header(None)
         driver = setup_driver()
         if not driver: exit()
         
-        # --- WORKFLOW DIPERBAIKI: Minta URL di awal ---
         start_url = input(f"{Fore.YELLOW}🔗 Masukkan URL awal untuk memulai (e.g., https://komikcast.li): {Style.RESET_ALL}")
         if not start_url.startswith(('http://', 'https://')):
             start_url = 'https://' + start_url
@@ -215,14 +234,13 @@ def main():
         time.sleep(2)
 
         while True:
-            print_header(driver) # Tampilkan header dengan URL saat ini
+            print_header(driver)
             user_goal = input(f"{Style.BRIGHT}{Fore.MAGENTA}DHANY SCRAPE > {Style.RESET_ALL}")
             if user_goal.lower() in ['keluar', 'exit', 'quit']:
                 break
             if not user_goal:
                 continue
             
-            # Ekstrak URL dari perintah jika ada, untuk menimpa URL saat ini
             match = re.search(r'https?://[^\s]+', user_goal)
             if match:
                 new_url = match.group(0)
@@ -234,7 +252,6 @@ def main():
             execute_agent_loop(driver, user_goal)
             print(f"\n{Fore.CYAN}{'═' * 74}{Style.RESET_ALL}")
             print(f"{Fore.YELLOW}Tugas selesai. Siap menerima perintah baru.{Style.RESET_ALL}")
-
 
     except KeyboardInterrupt:
         print(f"\n{Fore.YELLOW}Program dihentikan.{Style.RESET_ALL}")
