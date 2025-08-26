@@ -1,4 +1,4 @@
-# main.py (v8.2 - Improved AI Vision)
+# main.py (v8.3 - AI GPS Navigation)
 import os
 import json
 import time
@@ -67,7 +67,7 @@ def print_header(driver):
     ascii_art = pyfiglet.figlet_format('DHANY SCRAPE', font='slant')
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
-    version_info = f"{Fore.GREEN}Versi 8.2{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 8.3{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
     
     print(f"{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
@@ -81,39 +81,56 @@ def print_header(driver):
     print(f"{Fore.CYAN}{'═' * (width + 2)}{Style.RESET_ALL}")
 
 # --- OTAK AI: PERENCANA AKSI ---
-def get_interactive_elements(soup):
-    """Mengekstrak elemen interaktif (links, inputs, buttons) dari HTML."""
+def tag_interactive_elements(driver):
+    """Menyuntikkan atribut 'data-ai-id' ke elemen interaktif di halaman."""
+    js_script = """
+    const elements = document.querySelectorAll('a, button, input[type="submit"], input[type="text"], input[type="search"]');
+    elements.forEach((el, index) => {
+        el.setAttribute('data-ai-id', `ai-id-${index}`);
+    });
+    return document.documentElement.outerHTML;
+    """
+    return driver.execute_script(js_script)
+
+def get_element_map(soup):
+    """Mengekstrak 'peta' elemen interaktif yang sudah dilabeli."""
     elements = []
-    # Ekstrak links
-    for a in soup.find_all('a', href=True):
-        text = a.get_text(strip=True)
+    for el in soup.find_all(attrs={"data-ai-id": True}):
+        tag = el.name
+        text = el.get_text(strip=True)
+        ai_id = el['data-ai-id']
+        
+        element_info = {"ai_id": ai_id, "tag": tag}
         if text:
-            elements.append({"tag": "a", "text": text, "attributes": {"href": a['href']}})
-    # Ekstrak inputs
-    for i in soup.find_all('input'):
-        attrs = {key: i[key] for key in i.attrs}
-        elements.append({"tag": "input", "attributes": attrs})
+            element_info["text"] = text
+        
+        # Tambahkan atribut penting lainnya
+        if tag == 'a' and el.has_attr('href'):
+            element_info["href"] = el['href']
+        if tag == 'input' and el.has_attr('placeholder'):
+            element_info["placeholder"] = el['placeholder']
+            
+        elements.append(element_info)
     return elements
 
-def get_next_action_with_ai(goal, current_url, interactive_elements):
-    """AI menentukan langkah berikutnya berdasarkan 'peta' elemen interaktif."""
+def get_next_action_with_ai(goal, current_url, element_map):
+    """AI menentukan langkah berikutnya berdasarkan 'peta' elemen yang sudah dilabeli."""
     prompt = f"""
     Anda adalah otak dari agen web scraper otonom.
     Tujuan akhir Anda: "{goal}"
     Posisi Anda saat ini: "{current_url}"
 
-    Tugas Anda adalah menentukan SATU langkah berikutnya yang paling efisien berdasarkan "peta elemen" di bawah ini.
+    Tugas Anda adalah memilih SATU langkah berikutnya yang paling efisien berdasarkan "peta elemen" di bawah ini.
     Pilih salah satu dari aksi berikut dan kembalikan dalam format JSON:
-    1. {{ "action": "type", "selector": "CSS_SELECTOR", "text": "TEKS_UNTUK_DIKETIK" }}: Jika Anda perlu mengetik di kolom pencarian.
-    2. {{ "action": "click", "selector": "CSS_SELECTOR" }}: Jika Anda perlu mengklik link atau tombol untuk lebih dekat ke tujuan.
-    3. {{ "action": "scrape", "target": "DETAIL_TARGET" }}: HANYA jika Anda YAKIN sudah berada di halaman yang berisi semua informasi yang dibutuhkan.
-    4. {{ "action": "finish", "data": "Tujuan tercapai." }}: Jika tugas sudah selesai.
-    5. {{ "action": "fail", "reason": "ALASAN_GAGAL" }}: Jika Anda buntu atau tidak bisa menemukan informasi.
+    1. {{ "action": "type", "ai_id": "ID_ELEMEN", "text": "TEKS_UNTUK_DIKETIK" }}: Jika Anda perlu mengetik di kolom pencarian.
+    2. {{ "action": "click", "ai_id": "ID_ELEMEN" }}: Jika Anda perlu mengklik link atau tombol.
+    3. {{ "action": "scrape" }}: HANYA jika Anda YAKIN sudah berada di halaman yang berisi semua informasi yang dibutuhkan.
+    4. {{ "action": "fail", "reason": "ALASAN_GAGAL" }}: Jika Anda buntu.
 
-    Untuk membuat CSS Selector, gunakan informasi dari peta elemen. Contoh: untuk link dengan teks 'Solo Leveling', selectornya bisa 'a:contains("Solo Leveling")' atau lebih spesifik.
+    Pilih 'ai_id' dari elemen yang paling relevan di peta. JANGAN BUAT SELECTOR SENDIRI.
     Peta Elemen Interaktif di Halaman Saat Ini:
     ---
-    {json.dumps(interactive_elements[:100], indent=2)}
+    {json.dumps(element_map[:150], indent=2)}
     ---
     Berdasarkan tujuan dan peta elemen di atas, tentukan langkah berikutnya.
     """
@@ -149,39 +166,29 @@ def execute_agent_loop(driver, goal):
         print(f"\n{Style.BRIGHT}--- Langkah {step + 1}/{max_steps} ---{Style.RESET_ALL}")
         print(f"📍 Lokasi: {driver.current_url}")
 
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        interactive_elements = get_interactive_elements(soup)
+        # Labeli elemen dan buat peta
+        html_with_ids = tag_interactive_elements(driver)
+        soup = BeautifulSoup(html_with_ids, 'html.parser')
+        element_map = get_element_map(soup)
 
-        action_plan = run_with_loading(get_next_action_with_ai, goal, driver.current_url, interactive_elements)
+        action_plan = run_with_loading(get_next_action_with_ai, goal, driver.current_url, element_map)
         action = action_plan.get('action')
 
         try:
-            if action == "type":
-                selector = action_plan.get('selector')
-                text = action_plan.get('text')
-                print(f"🤖 Aksi: Mengetik '{text}' pada '{selector}'")
+            if action in ["type", "click"]:
+                ai_id = action_plan.get('ai_id')
+                selector = f"[data-ai-id='{ai_id}']"
                 element = driver.find_element(By.CSS_SELECTOR, selector)
-                element.clear()
-                element.send_keys(text)
-                element.send_keys(Keys.RETURN)
-                time.sleep(3)
-
-            elif action == "click":
-                selector = action_plan.get('selector')
-                print(f"🤖 Aksi: Mengklik elemen '{selector}'")
-                # Selenium tidak mendukung :contains, jadi kita cari manual
-                if ':contains' in selector:
-                    text_to_find = re.search(r':contains\("(.+?)"\)', selector).group(1)
-                    elements = driver.find_elements(By.CSS_SELECTOR, selector.split(':')[0])
-                    found = False
-                    for el in elements:
-                        if text_to_find in el.text:
-                            el.click()
-                            found = True
-                            break
-                    if not found: raise Exception(f"Elemen dengan teks '{text_to_find}' tidak ditemukan")
-                else:
-                    driver.find_element(By.CSS_SELECTOR, selector).click()
+                
+                if action == "type":
+                    text = action_plan.get('text')
+                    print(f"🤖 Aksi: Mengetik '{text}' pada elemen '{ai_id}'")
+                    element.clear()
+                    element.send_keys(text)
+                    element.send_keys(Keys.RETURN)
+                elif action == "click":
+                    print(f"🤖 Aksi: Mengklik elemen '{ai_id}'")
+                    element.click()
                 time.sleep(3)
 
             elif action == "scrape":
@@ -197,10 +204,6 @@ def execute_agent_loop(driver, goal):
                         with open(filename, 'w', encoding='utf-8') as f:
                             json.dump(final_data, f, ensure_ascii=False, indent=4)
                         print(f"{Fore.GREEN}💾 Data berhasil disimpan ke: {filename}{Style.RESET_ALL}")
-                return
-
-            elif action == "finish":
-                print(f"{Fore.GREEN}✅ Tujuan tercapai: {action_plan.get('data')}{Style.RESET_ALL}")
                 return
 
             elif action == "fail":
