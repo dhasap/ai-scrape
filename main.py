@@ -80,11 +80,11 @@ def print_header(driver):
     clear_screen()
     header = f"""
 {Style.BLUE}╔══════════════════════════════════════════════════════════════════════════════╗
-║{Style.BOLD} ____  _   _    _    _   _ ____      ____  ____   _    ____   ____ ____  {Style.END}{Style.BLUE}║
-║{Style.BOLD}|  _ \| | | |  / \  | \ | |  _ \    / ___|/ ___| / \  |  _ \ / ___|  _ \ {Style.END}{Style.BLUE}║
-║{Style.BOLD}| | | | | | | / _ \ |  \| | | | |   \___ \\___ \/ _ \ | |_) | |   | |_) |{Style.END}{Style.BLUE}║
-║{Style.BOLD}| |_| | |_| |/ ___ \| |\  | |_| |    ___) |__) / ___ \|  __/| |___|  __/ {Style.END}{Style.BLUE}║
-║{Style.BOLD}|____/ \___//_/   \_\_| \_|____/   |____/____/_/   \_\_|    \____|_|    {Style.END}{Style.BLUE}║
+║{Style.BOLD} ____  _   _    _    _   ___   __  ____   ____ ____     _    ____  _____ {Style.END}{Style.BLUE}║
+║{Style.BOLD}|  _ \| | | |  / \  | \ | \ \ / / / ___| / ___|  _ \   / \  |  _ \| ____|{Style.END}{Style.BLUE}║
+║{Style.BOLD}| | | | |_| | / _ \ |  \| |\ V /  \___ \| |   | |_) | / _ \ | |_) |  _|  {Style.END}{Style.BLUE}║
+║{Style.BOLD}| |_| |  _  |/ ___ \| |\  | | |    ___) | |___|  _ < / ___ \|  __/| |___ {Style.END}{Style.BLUE}║
+║{Style.BOLD}|____/|_| |_/_/   \_|_| \_| |_|   |____/ \____|_| \_/_/   \_|_|   |_____|{Style.END}{Style.BLUE}║
 ║                                                                              ║
 ║{' ' * 21}{Style.PURPLE}{Style.BOLD}😈 Dhany adalah Raja Iblis 👑{Style.END}{Style.BLUE}{' ' * 22}║
 ╚══════════════════════════════════════════════════════════════════════════════╝{Style.END}
