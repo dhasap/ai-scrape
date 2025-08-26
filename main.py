@@ -1,4 +1,4 @@
-# main.py (v8.6 - Resilient Agent)
+# main.py (v8.7 - Resilient Agent with Smart Wait)
 import os
 import json
 import time
@@ -65,20 +65,22 @@ def run_with_loading(target_func, *args, **kwargs):
     return result
 
 def print_header(driver):
-    os.system('cls' if os.name == 'nt' else 'clear')
+    # --- PERUBAHAN: Menghapus pembersihan layar otomatis ---
+    # os.system('cls' if os.name == 'nt' else 'clear')
     ascii_art = pyfiglet.figlet_format('DHANY SCRAPE', font='slant')
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
-    version_info = f"{Fore.GREEN}Versi 8.6{Style.RESET_ALL} | {Fore.CYAN}Autonomous Agent{Style.RESET_ALL}"
+    # --- PERUBAHAN: Memperbarui nomor versi ---
+    version_info = f"{Fore.GREEN}Versi 8.7{Style.RESET_ALL} | {Fore.CYAN}Smart Wait Agent{Style.RESET_ALL}"
     
-    print(f"{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
+    print(f"\n{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
         print(f"{Fore.BLUE}{Style.BRIGHT}║ {line.center(width - 2)} ║{Style.RESET_ALL}")
     print(f"{Fore.BLUE}{Style.BRIGHT}║{' ' * width}║{Style.RESET_ALL}")
     print(f"{Fore.BLUE}{Style.BRIGHT}║{Style.NORMAL}{Fore.MAGENTA}{Style.BRIGHT}{tagline.center(width)}{Style.RESET_ALL}{Fore.BLUE}{Style.BRIGHT}║")
     print(f"{Fore.BLUE}{Style.BRIGHT}║{version_info.center(width + 10)}{Fore.BLUE}{Style.BRIGHT}║")
     print(f"{Fore.BLUE}{Style.BRIGHT}╚{'═' * width}╝{Style.RESET_ALL}")
-    if driver:
+    if driver and driver.current_url != "data:,":
         print(f"\n{Style.BRIGHT}📍 Lokasi Saat Ini:{Style.RESET_ALL} {UNDERLINE}{driver.current_url}{Style.RESET_ALL}")
     print(f"{Fore.CYAN}{'═' * (width + 2)}{Style.RESET_ALL}")
 
@@ -179,7 +181,11 @@ def execute_agent_loop(driver, goal):
                 ai_id = action_plan.get('ai_id')
                 selector = f"[data-ai-id='{ai_id}']"
                 old_html_element = driver.find_element(By.TAG_NAME, "html")
-                element = driver.find_element(By.CSS_SELECTOR, selector)
+                
+                # --- PERUBAHAN 1: Menunggu elemen menjadi bisa diklik ---
+                print(f"⏳ Menunggu elemen '{ai_id}' untuk bisa di-klik...")
+                wait = WebDriverWait(driver, 10)
+                element = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
                 
                 if action == "type":
                     text = action_plan.get('text')
@@ -193,6 +199,11 @@ def execute_agent_loop(driver, goal):
                 
                 print("⏳ Menunggu halaman baru dimuat...")
                 WebDriverWait(driver, 15).until(EC.staleness_of(old_html_element))
+                
+                # --- PERUBAHAN 2: Memberi waktu halaman untuk "bernapas" ---
+                print("☕ Memberi waktu 2 detik bagi halaman untuk memuat konten dinamis...")
+                time.sleep(2)
+                
                 print("✅ Halaman baru berhasil dimuat.")
 
             elif action == "scrape":
@@ -218,11 +229,10 @@ def execute_agent_loop(driver, goal):
                 print(f"{Fore.RED}❌ Aksi tidak dikenali: {action}{Style.RESET_ALL}")
                 return
         except Exception as e:
-            # --- PERBAIKAN KUNCI: JANGAN HENTIKAN LOOP ---
             print(f"{Fore.RED}Gagal melakukan aksi '{action}': {e}{Style.RESET_ALL}")
             print(f"{Fore.YELLOW}Mencoba membuat rencana baru dari halaman saat ini...{Style.RESET_ALL}")
-            time.sleep(2) # Beri jeda sebelum mencoba lagi
-            continue # Lanjutkan ke iterasi loop berikutnya
+            time.sleep(2)
+            continue
             
     print(f"{Fore.YELLOW}⚠️ Agen mencapai batas langkah maksimum.{Style.RESET_ALL}")
 
@@ -231,9 +241,14 @@ def execute_agent_loop(driver, goal):
 def main():
     driver = None
     try:
+        # --- PERUBAHAN: Membersihkan layar hanya sekali di awal ---
+        os.system('cls' if os.name == 'nt' else 'clear')
         print_header(None)
+        
         driver = setup_driver()
-        if not driver: exit()
+        if not driver: 
+            print(f"{Fore.RED}❌ Gagal memulai browser. Pastikan ChromeDriver sudah terinstal.{Style.RESET_ALL}")
+            exit()
         
         start_url = input(f"{Fore.YELLOW}🔗 Masukkan URL awal untuk memulai (e.g., https://komikcast.li): {Style.RESET_ALL}")
         if not start_url.startswith(('http://', 'https://')):
@@ -260,6 +275,7 @@ def main():
                     time.sleep(2)
 
             execute_agent_loop(driver, user_goal)
+            # Pesan ini akan tetap terlihat karena layar tidak lagi dibersihkan
             print(f"\n{Fore.CYAN}{'═' * 74}{Style.RESET_ALL}")
             print(f"{Fore.YELLOW}Tugas selesai. Siap menerima perintah baru.{Style.RESET_ALL}")
 
@@ -276,12 +292,21 @@ def setup_driver():
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    # Menambahkan user-agent untuk menyamar sebagai browser biasa
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     try:
+        # Coba path standar untuk chromedriver di sistem berbasis Debian/Ubuntu
         service = Service(executable_path='/usr/bin/chromedriver')
         driver = webdriver.Chrome(service=service, options=options)
         return driver
     except Exception:
-        return None
+        # Fallback jika path di atas tidak ditemukan (untuk sistem lain)
+        try:
+            driver = webdriver.Chrome(options=options)
+            return driver
+        except Exception as e:
+            print(f"Error saat setup driver: {e}")
+            return None
 
 if __name__ == "__main__":
     main()
