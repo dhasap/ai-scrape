@@ -1,15 +1,35 @@
-# 🤖 AI Comic Scraper
+<div align="center">
 
-<div align="center">🤖 AI Comic Scraper 📖 Sebuah tool CLI cerdas yang ditenagai oleh Google Gemini untuk menavigasi dan melakukan scraping data dari website komik menggunakan bahasa natural.</div>
+# 📖 Universal AI Comic Scraper v5.0 🤖
+
+**CLI Scraper Modern dengan Kecerdasan AI + Otomatisasi Browser**
+
+🚀 Powered by Google Gemini & Selenium 🚀
+
+</div>
 
 ---
 
-## ✨ Fitur Utama
+## ✨ Fitur Unggulan
 
-* 🧠 **Navigasi Cerdas**: Gunakan perintah bahasa natural (misalnya: "cari one piece") untuk membiarkan AI memilih link yang paling relevan.
-* 📋 **Ekstraksi Data Lengkap**: Ambil semua informasi penting dari halaman detail komik, termasuk judul, sinopsis, genre, status, rating, dan daftar chapter.
-* 📄 **Output JSON**: Semua data yang berhasil di-scrape akan disajikan dalam format JSON yang bersih dan terstruktur, siap untuk diolah.
-* 💻 **Interaktif & Ringan**: Dijalankan sepenuhnya melalui CLI yang mudah digunakan tanpa memerlukan browser.
+* 🌐 **Scraping Universal**
+  Tidak lagi terbatas pada satu website! AI mampu menganalisis struktur HTML dari hampir semua halaman detail komik dan mengekstrak data secara otomatis.
+
+* 🧠 **Pencarian Interaktif**
+  Lakukan pencarian dengan bahasa natural dan dapatkan daftar hasil yang bisa ditelusuri. AI akan menampilkan **5 judul teratas**, dan Anda dapat meminta lebih banyak dengan perintah `lagi`.
+
+* 🎯 **Navigasi Cerdas**
+  Gunakan perintah natural seperti:
+
+  * `pergi cari [judul]` → melakukan pencarian
+  * `pergi ke [nomor]` → langsung ke detail komik dari hasil pencarian
+  * `pergi ke daftar komik` → navigasi ke menu atau halaman tertentu
+
+* 📄 **Output JSON Modern**
+  Data hasil scraping ditampilkan dalam format **JSON terstruktur, bersih, dan siap diolah**.
+
+* ⚡ **CLI Ringan & Elegan**
+  Dijalankan sepenuhnya lewat CLI dengan dukungan warna & tampilan modern.
 
 ---
 
@@ -19,8 +39,6 @@ Ikuti langkah-langkah berikut untuk menjalankan proyek ini di mesin lokal Anda.
 
 ### 1. Clone Repository
 
-Pertama, clone repository ini ke komputer Anda:
-
 ```bash
 git clone https://github.com/dhasap/ai-scrape.git
 cd ai-scrape
@@ -28,118 +46,111 @@ cd ai-scrape
 
 ### 2. Instalasi Dependensi
 
-Pastikan Anda memiliki Python 3.8+. Kemudian, instal semua library yang dibutuhkan:
+Pastikan Anda memiliki **Python 3.8+**. Buat virtual environment agar lebih terisolasi.
 
 ```bash
+# Buat dan aktifkan virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Instal library
 pip install -r requirements.txt
 ```
 
-### 3. Setup API Key Gemini
+### 3. Setup Browser Driver (untuk Selenium)
 
-Tool ini memerlukan API Key dari Google Gemini.
+Untuk Chromebook/Debian/Ubuntu:
 
-* Dapatkan API Key Anda dari [Google AI Studio](https://makersuite.google.com/).
-* Set API Key tersebut sebagai environment variable agar aman.
+```bash
+sudo apt install chromium-driver
+```
 
-Untuk **Windows (Command Prompt):**
+Untuk OS Lain: pastikan Anda memiliki **Google Chrome** + **ChromeDriver** dengan versi yang sesuai.
+
+### 4. Setup API Key Gemini
+
+Dapatkan API Key Anda dari **Google AI Studio**.
+
+Atur API Key sebagai environment variable:
+
+**Windows (Command Prompt):**
 
 ```bash
 setx GEMINI_API_KEY "API_KEY_ANDA_DISINI"
 ```
 
-(Anda perlu menutup dan membuka kembali terminal agar variabel ini terbaca)
-
-Untuk **macOS / Linux:**
+**macOS / Linux:**
 
 ```bash
 export GEMINI_API_KEY="API_KEY_ANDA_DISINI"
 ```
 
-(Untuk membuatnya permanen, tambahkan baris di atas ke dalam file `~/.bashrc` atau `~/.zshrc`)
+Tambahkan ke `~/.bashrc` atau `~/.zshrc` agar permanen.
 
 ---
 
 ## ⚙️ Cara Menggunakan
 
-Setelah instalasi dan setup API Key selesai, jalankan aplikasi dengan perintah:
+Setelah instalasi selesai, jalankan aplikasi dengan perintah:
 
 ```bash
-python main.py
+python3 main.py
 ```
-
-Aplikasi akan meminta Anda memasukkan URL utama dari website komik yang ingin di-scrape.
 
 ---
 
 ## 🕹️ Contoh Sesi Penggunaan
 
-### Memulai & Bernavigasi dengan AI
+### 🔍 Mencari Komik & Menampilkan Hasil
 
-Masukkan URL utama website komik (cth: `https://komikcast.li`):
-
-```
-https://komikcast.li
-
-📍 Lokasi saat ini: https://komikcast.li
-> pergi ke daftar manga populer
+```bash
+> pergi cari magic
 ```
 
-AI akan memproses perintah, memilih link yang paling sesuai, dan otomatis berpindah ke URL tersebut.
-
-### Melakukan Scraping Data
-
-Setelah berada di halaman detail komik yang diinginkan:
+Hasil:
 
 ```
-📍 Lokasi saat ini: https://komikcast.li/komik/solo-leveling/
-> scrape
+1. Magic Emperor
+2. The Beginning After The End
+3. Return of the 8th Class Magician
+4. I Am The Sorcerer King
+5. A Returner's Magic Should Be Special
 ```
 
-### Menyimpan Hasil ke File
-
-Setelah data ditampilkan, Anda akan ditanya apakah ingin menyimpan hasilnya.
-
-```
-Apakah Anda ingin menyimpan hasil ini ke file JSON? (y/n): y
-💾 Data berhasil disimpan ke file: solo_leveling.json
-```
+Ketik `lagi` untuk 5 berikutnya, atau `pergi ke [nomor]` untuk memilih.
 
 ---
 
-## 📄 Contoh Output JSON
+### ⏭️ Melihat Hasil Berikutnya
 
-Berikut adalah contoh struktur data JSON yang akan dihasilkan setelah proses scraping:
-
-```json
-{
-    "url_sumber": "https://komikcast.li/komik/solo-leveling/",
-    "judul": "Solo Leveling",
-    "sinopsis": "10 tahun yang lalu, setelah “Gerbang” yang menghubungkan dunia nyata dengan dunia monster terbuka...",
-    "details": {
-        "status": "Completed",
-        "type": "Manhwa",
-        "rilis": "2018",
-        "author": "Chugong",
-        "artist": "DUBU (REDICE STUDIO)"
-    },
-    "genre": [
-        "Action",
-        "Adventure",
-        "Fantasy",
-        "Manhwa"
-    ],
-    "rating": "9.1",
-    "daftar_chapter": [
-        {
-            "chapter": "Chapter 179 [END]",
-            "url": "https://komikcast.li/chapter/solo-leveling-chapter-179-bahasa-indonesia/",
-            "tanggal_rilis": "Desember 30, 2021"
-        },
-        {
-            "chapter": "Chapter 178",
-            "url": "https://komikcast.li/chapter/solo-leveling-chapter-178-bahasa-indonesia/",
-            "tanggal_rilis": "Desember 22, 2021"
-        }
-    ]
-}
+```bash
+> lagi
 ```
+
+### 🎯 Memilih dari Hasil Pencarian
+
+```bash
+> pergi ke 3
+```
+
+AI akan membuka detail **Return of the 8th Class Magician**.
+
+---
+
+### ⚡ Langsung ke Detail Komik
+
+```bash
+> pergi ke solo leveling
+```
+
+AI akan langsung mencari dan membuka halaman detail **Solo Leveling**.
+
+---
+
+### 📄 Melakukan Scraping Universal
+
+```bash
+> scrape
+```
+
+AI akan menganalisis halaman detail dan mengekstrak data ke format JSON terstruktur.
