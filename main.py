@@ -1,4 +1,4 @@
-# main.py (v8.7 - Resilient Agent with Smart Wait)
+# main.py (v8.8 - Smarter Decision Agent)
 import os
 import json
 import time
@@ -65,13 +65,12 @@ def run_with_loading(target_func, *args, **kwargs):
     return result
 
 def print_header(driver):
-    # --- PERUBAHAN: Menghapus pembersihan layar otomatis ---
     # os.system('cls' if os.name == 'nt' else 'clear')
     ascii_art = pyfiglet.figlet_format('DHANY SCRAPE', font='slant')
     width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
     tagline = "😈 Dhany adalah Raja Iblis 👑"
     # --- PERUBAHAN: Memperbarui nomor versi ---
-    version_info = f"{Fore.GREEN}Versi 8.7{Style.RESET_ALL} | {Fore.CYAN}Smart Wait Agent{Style.RESET_ALL}"
+    version_info = f"{Fore.GREEN}Versi 8.8{Style.RESET_ALL} | {Fore.CYAN}Smarter Decision Agent{Style.RESET_ALL}"
     
     print(f"\n{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
     for line in ascii_art.strip('\n').split('\n'):
@@ -118,8 +117,9 @@ def get_element_map(soup):
 
 def get_next_action_with_ai(goal, current_url, element_map):
     """AI menentukan langkah berikutnya berdasarkan 'peta' elemen yang sudah dilabeli."""
+    # --- PERUBAHAN: Prompt dibuat lebih cerdas ---
     prompt = f"""
-    Anda adalah otak dari agen web scraper otonom.
+    Anda adalah otak dari agen web scraper otonom yang sangat cerdas.
     Tujuan akhir Anda: "{goal}"
     Posisi Anda saat ini: "{current_url}"
 
@@ -127,36 +127,47 @@ def get_next_action_with_ai(goal, current_url, element_map):
     Pilih salah satu dari aksi berikut dan kembalikan dalam format JSON:
     1. {{ "action": "type", "ai_id": "ID_ELEMEN", "text": "TEKS_UNTUK_DIKETIK" }}: Jika Anda perlu mengetik di kolom pencarian.
     2. {{ "action": "click", "ai_id": "ID_ELEMEN" }}: Jika Anda perlu mengklik link atau tombol.
-    3. {{ "action": "scrape" }}: HANYA jika Anda YAKIN sudah berada di halaman yang berisi semua informasi yang dibutuhkan.
-    4. {{ "action": "fail", "reason": "ALASAN_GAGAL" }}: Jika Anda buntu.
+    3. {{ "action": "scrape" }}: HANYA jika Anda YAKIN sudah berada di halaman detail final yang berisi sinopsis, daftar chapter, dll.
+    4. {{ "action": "fail", "reason": "ALASAN_GAGAL" }}: Jika Anda buntu atau tidak bisa menemukan elemen yang relevan.
 
-    Pilih 'ai_id' dari elemen yang paling relevan di peta. JANGAN BUAT SELECTOR SENDIRI.
+    --- ATURAN KRITIS ---
+    - Jika URL saat ini mengandung parameter pencarian (contoh: "?s=") atau halaman ini jelas merupakan DAFTAR HASIL PENCARIAN, tugas utama Anda adalah **MENGKLIK** link yang paling relevan dengan tujuan "{goal}".
+    - **JANGAN** memilih 'scrape' di halaman daftar atau halaman hasil pencarian. Aksi 'scrape' hanya untuk halaman detail.
+    - Pilih 'ai_id' dari elemen yang paling relevan di peta. JANGAN BUAT SELECTOR SENDIRI.
+    --------------------
+
     Peta Elemen Interaktif di Halaman Saat Ini:
     ---
     {json.dumps(element_map[:150], indent=2)}
     ---
-    Berdasarkan tujuan dan peta elemen di atas, tentukan langkah berikutnya.
+    Berdasarkan tujuan, posisi, dan ATURAN KRITIS di atas, tentukan langkah berikutnya.
     """
     try:
         response = MODEL.generate_content(prompt)
+        # Menambahkan penanganan jika respons AI tidak valid
         json_text = response.text.strip().replace("```json", "").replace("```", "")
+        if not json_text.startswith('{'):
+            return {'action': 'fail', 'reason': f'Respons AI tidak valid: {json_text}'}
         return json.loads(json_text)
-    except Exception:
-        return {'action': 'fail', 'reason': 'Gagal memproses respons dari AI.'}
+    except Exception as e:
+        return {'action': 'fail', 'reason': f'Gagal memproses respons dari AI: {e}'}
 
 def scrape_details_with_ai(goal, html_content):
     """AI mengekstrak semua data detail dari halaman final."""
     prompt = f"""
     Anda adalah ahli scraper. Tujuan scraping adalah: "{goal}".
     Dari HTML berikut, ekstrak semua informasi relevan (judul, author, genre, type, status, tanggal rilis, rating, sinopsis, daftar chapter) ke dalam format JSON yang konsisten.
+    Jika informasi tidak ditemukan, gunakan null.
     HTML:
     ---
-    {html_content[:25000]}
+    {html_content[:30000]}
     ---
     """
     try:
         response = MODEL.generate_content(prompt)
         json_text = response.text.strip().replace("```json", "").replace("```", "")
+        if not json_text.startswith('{'):
+             return {'error': f'AI gagal mengekstrak detail, respons tidak valid: {json_text}'}
         return json.loads(json_text)
     except Exception as e:
         return {'error': f'AI gagal mengekstrak detail: {e}'}
@@ -182,7 +193,6 @@ def execute_agent_loop(driver, goal):
                 selector = f"[data-ai-id='{ai_id}']"
                 old_html_element = driver.find_element(By.TAG_NAME, "html")
                 
-                # --- PERUBAHAN 1: Menunggu elemen menjadi bisa diklik ---
                 print(f"⏳ Menunggu elemen '{ai_id}' untuk bisa di-klik...")
                 wait = WebDriverWait(driver, 10)
                 element = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
@@ -200,7 +210,6 @@ def execute_agent_loop(driver, goal):
                 print("⏳ Menunggu halaman baru dimuat...")
                 WebDriverWait(driver, 15).until(EC.staleness_of(old_html_element))
                 
-                # --- PERUBAHAN 2: Memberi waktu halaman untuk "bernapas" ---
                 print("☕ Memberi waktu 2 detik bagi halaman untuk memuat konten dinamis...")
                 time.sleep(2)
                 
@@ -215,7 +224,9 @@ def execute_agent_loop(driver, goal):
                     print(f"{Fore.GREEN}✅ Scraping Selesai!{Style.RESET_ALL}")
                     print(json.dumps(final_data, indent=2, ensure_ascii=False))
                     if input(f"{Fore.YELLOW}Simpan ke file JSON? (y/n): {Style.RESET_ALL}").lower() == 'y':
-                        filename = goal.split(' ')[-1].lower() + ".json"
+                        # Membuat nama file yang lebih aman
+                        safe_filename = "".join([c for c in goal if c.isalpha() or c.isdigit() or c.isspace()]).rstrip()
+                        filename = safe_filename.replace(' ', '_').lower() + ".json"
                         with open(filename, 'w', encoding='utf-8') as f:
                             json.dump(final_data, f, ensure_ascii=False, indent=4)
                         print(f"{Fore.GREEN}💾 Data berhasil disimpan ke: {filename}{Style.RESET_ALL}")
@@ -241,7 +252,6 @@ def execute_agent_loop(driver, goal):
 def main():
     driver = None
     try:
-        # --- PERUBAHAN: Membersihkan layar hanya sekali di awal ---
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(None)
         
@@ -275,7 +285,6 @@ def main():
                     time.sleep(2)
 
             execute_agent_loop(driver, user_goal)
-            # Pesan ini akan tetap terlihat karena layar tidak lagi dibersihkan
             print(f"\n{Fore.CYAN}{'═' * 74}{Style.RESET_ALL}")
             print(f"{Fore.YELLOW}Tugas selesai. Siap menerima perintah baru.{Style.RESET_ALL}")
 
@@ -292,15 +301,12 @@ def setup_driver():
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    # Menambahkan user-agent untuk menyamar sebagai browser biasa
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     try:
-        # Coba path standar untuk chromedriver di sistem berbasis Debian/Ubuntu
         service = Service(executable_path='/usr/bin/chromedriver')
         driver = webdriver.Chrome(service=service, options=options)
         return driver
     except Exception:
-        # Fallback jika path di atas tidak ditemukan (untuk sistem lain)
         try:
             driver = webdriver.Chrome(options=options)
             return driver
