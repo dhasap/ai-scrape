@@ -1,6 +1,6 @@
 requests
-beautifulsoup4
-google-generativeai
-selenium
+rich
+questionary
 pyfiglet
-colorama
+google-generativeai
+python-dotenv

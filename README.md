@@ -1,156 +1,83 @@
+# 📖 Universal AI Comic Scraper v10.0 🚀
+
 <div align="center">
 
-# 📖 Universal AI Comic Scraper v5.0 🤖
-
-**CLI Scraper Modern dengan Kecerdasan AI + Otomatisasi Browser**
-
-🚀 Powered by Google Gemini & Selenium 🚀
+**Arsitektur Client-Server dengan Backend di Vercel & CLI Modern di Termux**
 
 </div>
 
 ---
 
-## ✨ Fitur Unggulan
+## ✨ Konsep Arsitektur Baru
 
-* 🌐 **Scraping Universal**
-  Tidak lagi terbatas pada satu website! AI mampu menganalisis struktur HTML dari hampir semua halaman detail komik dan mengekstrak data secara otomatis.
+Scraper ini telah dirombak total menjadi arsitektur client-server yang tangguh dan modern:
 
-* 🧠 **Pencarian Interaktif**
-  Lakukan pencarian dengan bahasa natural dan dapatkan daftar hasil yang bisa ditelusuri. AI akan menampilkan **5 judul teratas**, dan Anda dapat meminta lebih banyak dengan perintah `lagi`.
+*   **Backend API (di Vercel)**: Sebuah "mesin" scraping yang dibuat dengan **FastAPI** dan **Playwright**. Semua pekerjaan berat seperti menjalankan browser, mengeksekusi JavaScript, dan parsing HTML dilakukan di cloud. Ini membuat prosesnya cepat dan tidak membebani perangkat lokal.
 
-* 🎯 **Navigasi Cerdas**
-  Gunakan perintah natural seperti:
+*   **Frontend CLI (di Termux/PC)**: Sebuah "kokpit" atau antarmuka pengguna yang dibuat dengan **Rich** dan **Questionary**. Tugasnya hanya menerima perintah dari pengguna dan berkomunikasi dengan backend. Tampilannya interaktif, modern, dan ramah pengguna.
 
-  * `pergi cari [judul]` → melakukan pencarian
-  * `pergi ke [nomor]` → langsung ke detail komik dari hasil pencarian
-  * `pergi ke daftar komik` → navigasi ke menu atau halaman tertentu
+## 🚀 Alur Instalasi & Setup
 
-* 📄 **Output JSON Modern**
-  Data hasil scraping ditampilkan dalam format **JSON terstruktur, bersih, dan siap diolah**.
+Proses setup sekarang dibagi menjadi dua bagian: Backend dan CLI.
 
-* ⚡ **CLI Ringan & Elegan**
-  Dijalankan sepenuhnya lewat CLI dengan dukungan warna & tampilan modern.
+### **Bagian 1: Setup Backend di Vercel**
+
+1.  **Clone Repository**
+    ```bash
+    git clone https://github.com/dhasap/ai-scrape.git
+    cd ai-scrape
+    ```
+
+2.  **Deploy ke Vercel**
+    *   Install Vercel CLI di PC Anda: `npm install -g vercel`
+    *   Login ke Vercel: `vercel login`
+    *   Dari dalam direktori `ai-scrape`, jalankan perintah `vercel` dan ikuti petunjuknya untuk mendeploy proyek baru.
+
+3.  **Konfigurasi Proyek di Vercel**
+    Setelah deploy, buka dashboard proyek Anda di situs Vercel:
+
+    *   **Atur Build Command**:
+        *   Buka `Settings > General`.
+        *   Di bagian `Build & Development Settings`, override **Build Command** dan masukkan:
+        ```bash
+        pip install -r api/requirements.txt && playwright install --with-deps chromium
+        ```
+
+    *   **Atur Environment Variable**:
+        *   Buka `Settings > Environment Variables`.
+        *   Tambahkan variabel berikut:
+          *   `GEMINI_API_KEY`: Masukkan API Key Google Gemini Anda.
+
+4.  **Dapatkan URL Backend Anda**
+    *   Setelah Vercel selesai deploy ulang, salin URL produksi Anda. Contoh: `https://ai-scrape-xxxxx.vercel.app`
 
 ---
 
-## 🚀 Instalasi & Setup
+### **Bagian 2: Setup CLI di Termux (atau PC)**
 
-Ikuti langkah-langkah berikut untuk menjalankan proyek ini di mesin lokal Anda.
+1.  **Install Dependensi CLI**
+    Di dalam direktori `ai-scrape` di Termux, jalankan:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-### 1. Clone Repository
-
-```bash
-git clone https://github.com/dhasap/ai-scrape.git
-cd ai-scrape
-```
-
-### 2. Instalasi Dependensi
-
-Pastikan Anda memiliki **Python 3.8+**. Buat virtual environment agar lebih terisolasi.
-
-```bash
-# Buat dan aktifkan virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Instal library
-pip install -r requirements.txt
-```
-
-### 3. Setup Browser Driver (untuk Selenium)
-
-Untuk Chromebook/Debian/Ubuntu:
-
-```bash
-sudo apt install chromium-driver
-```
-
-Untuk OS Lain: pastikan Anda memiliki **Google Chrome** + **ChromeDriver** dengan versi yang sesuai.
-
-### 4. Setup API Key Gemini
-
-Dapatkan API Key Anda dari **Google AI Studio**.
-
-Atur API Key sebagai environment variable:
-
-**Windows (Command Prompt):**
-
-```bash
-setx GEMINI_API_KEY "API_KEY_ANDA_DISINI"
-```
-
-**macOS / Linux:**
-
-```bash
-export GEMINI_API_KEY="API_KEY_ANDA_DISINI"
-```
-
-Tambahkan ke `~/.bashrc` atau `~/.zshrc` agar permanen.
+2.  **Buat File Konfigurasi (`.env`)**
+    *   Buat sebuah file baru bernama `.env` di direktori utama.
+    *   Isi file `.env` dengan format berikut:
+    ```env
+    GEMINI_API_KEY="API_KEY_ANDA_DISINI"
+    VERCEL_API_URL="URL_BACKEND_VERCEL_ANDA_DISINI"
+    ```
+    *   Ganti dengan API Key Anda dan URL yang Anda dapatkan dari Vercel.
 
 ---
 
 ## ⚙️ Cara Menggunakan
 
-Setelah instalasi selesai, jalankan aplikasi dengan perintah:
+Setelah semua setup selesai, jalankan aplikasi dari Termux atau PC Anda dengan perintah:
 
 ```bash
-python3 main.py
+python main.py
 ```
 
----
-
-## 🕹️ Contoh Sesi Penggunaan
-
-### 🔍 Mencari Komik & Menampilkan Hasil
-
-```bash
-> pergi cari magic
-```
-
-Hasil:
-
-```
-1. Magic Emperor
-2. The Beginning After The End
-3. Return of the 8th Class Magician
-4. I Am The Sorcerer King
-5. A Returner's Magic Should Be Special
-```
-
-Ketik `lagi` untuk 5 berikutnya, atau `pergi ke [nomor]` untuk memilih.
-
----
-
-### ⏭️ Melihat Hasil Berikutnya
-
-```bash
-> lagi
-```
-
-### 🎯 Memilih dari Hasil Pencarian
-
-```bash
-> pergi ke 3
-```
-
-AI akan membuka detail **Return of the 8th Class Magician**.
-
----
-
-### ⚡ Langsung ke Detail Komik
-
-```bash
-> pergi ke solo leveling
-```
-
-AI akan langsung mencari dan membuka halaman detail **Solo Leveling**.
-
----
-
-### 📄 Melakukan Scraping Universal
-
-```bash
-> scrape
-```
-
-AI akan menganalisis halaman detail dan mengekstrak data ke format JSON terstruktur.
+Anda akan disambut oleh menu interaktif yang modern. Cukup ikuti petunjuk di layar untuk memulai sesi scraping baru.

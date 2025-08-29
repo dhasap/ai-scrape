@@ -1,363 +1,196 @@
-# main.py (v9.1 - Schema Guided Agent)
+# main.py (v10.0 - Modern CLI Client)
 import os
 import json
-import time
 import sys
-import threading
-import re
 from urllib.parse import urljoin
 
 import google.generativeai as genai
-from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-
+import requests
+import questionary
+from rich.console import Console
+from rich.panel import Panel
+from rich.syntax import Syntax
+from rich.spinner import Spinner
+from dotenv import load_dotenv
 import pyfiglet
-from colorama import init, Fore, Style
 
-# Inisialisasi Colorama
-init(autoreset=True)
+# --- Konfigurasi --- 
+load_dotenv()
+console = Console()
 
-# --- KONFIGURASI ---
+# PENTING: Ganti dengan URL Vercel Anda setelah deploy!
+VERCEL_API_URL = os.environ.get("VERCEL_API_URL", "http://127.0.0.1:8000") 
+
 try:
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
     if not GEMINI_API_KEY:
-        raise ValueError("API Key Gemini tidak ditemukan.")
+        raise ValueError("API Key Gemini tidak ditemukan di .env")
     genai.configure(api_key=GEMINI_API_KEY)
+    AI_MODEL = genai.GenerativeModel('gemini-1.5-flash')
 except ValueError as e:
-    print(e)
-    exit()
+    console.print(f"[bold red]❌ Error Konfigurasi: {e}[/bold red]")
+    sys.exit(1)
 
-MODEL = genai.GenerativeModel('gemini-1.5-flash')
+# --- Komponen Tampilan ---
 
-# --- FUNGSI TAMPILAN & ANIMASI ---
-LOADING_EVENT = threading.Event()
-UNDERLINE = '\033[4m'
+def print_header():
+    """Menampilkan header program menggunakan pyfiglet dan rich."""
+    ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
+    console.print(Panel(
+        f"[bold cyan]{ascii_art}[/bold cyan]",
+        title="[white]Universal AI Comic Scraper[/white]",
+        subtitle="[green]v10.0 - CLI Client[/green]",
+        border_style="blue"
+    ))
 
-def spinner_animation():
-    spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-    while not LOADING_EVENT.is_set():
-        for char in spinner_chars:
-            sys.stdout.write(f'\r{Fore.CYAN}{char} {Style.RESET_ALL}AI sedang berpikir... ')
-            sys.stdout.flush()
-            time.sleep(0.1)
-            if LOADING_EVENT.is_set():
-                break
-    sys.stdout.write('\r' + ' ' * 30 + '\r')
-    sys.stdout.flush()
+# --- Logika Interaksi Backend & AI ---
 
-def run_with_loading(target_func, *args, **kwargs):
-    LOADING_EVENT.clear()
-    animation_thread = threading.Thread(target=spinner_animation)
-    animation_thread.start()
-    result = None
-    try:
-        result = target_func(*args, **kwargs)
-    finally:
-        LOADING_EVENT.set()
-        animation_thread.join()
-    return result
-
-def print_header(driver):
-    # os.system('cls' if os.name == 'nt' else 'clear')
-    ascii_art = pyfiglet.figlet_format('DHANY SCRAPE', font='slant')
-    width = max(len(line) for line in ascii_art.strip('\n').split('\n')) + 4
-    tagline = "😈 Dhany adalah Raja Iblis 👑"
-    # --- PERUBAHAN: Memperbarui nomor versi ---
-    version_info = f"{Fore.GREEN}Versi 9.1{Style.RESET_ALL} | {Fore.CYAN}Schema Guided Agent{Style.RESET_ALL}"
-    
-    print(f"\n{Fore.BLUE}{Style.BRIGHT}╔{'═' * width}╗{Style.RESET_ALL}")
-    for line in ascii_art.strip('\n').split('\n'):
-        print(f"{Fore.BLUE}{Style.BRIGHT}║ {line.center(width - 2)} ║{Style.RESET_ALL}")
-    print(f"{Fore.BLUE}{Style.BRIGHT}║{' ' * width}║{Style.RESET_ALL}")
-    print(f"{Fore.BLUE}{Style.BRIGHT}║{Style.NORMAL}{Fore.MAGENTA}{Style.BRIGHT}{tagline.center(width)}{Style.RESET_ALL}{Fore.BLUE}{Style.BRIGHT}║")
-    print(f"{Fore.BLUE}{Style.BRIGHT}║{version_info.center(width + 10)}{Fore.BLUE}{Style.BRIGHT}║")
-    print(f"{Fore.BLUE}{Style.BRIGHT}╚{'═' * width}╝{Style.RESET_ALL}")
-    if driver and driver.current_url != "data:,":
-        print(f"\n{Style.BRIGHT}📍 Lokasi Saat Ini:{Style.RESET_ALL} {UNDERLINE}{driver.current_url}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{'═' * (width + 2)}{Style.RESET_ALL}")
-
-# --- OTAK AI: PERENCANA AKSI ---
-def tag_interactive_elements(driver):
-    """Menyuntikkan atribut 'data-ai-id' ke elemen interaktif di halaman."""
-    js_script = """
-    const elements = document.querySelectorAll('a, button, input[type="submit"], input[type="text"], input[type="search"]');
-    elements.forEach((el, index) => {
-        el.setAttribute('data-ai-id', `ai-id-${index}`);
-    });
-    return document.documentElement.outerHTML;
-    """
-    return driver.execute_script(js_script)
-
-def get_element_map(soup):
-    """Mengekstrak 'peta' elemen interaktif yang sudah dilabeli."""
-    elements = []
-    for el in soup.find_all(attrs={"data-ai-id": True}):
-        tag = el.name
-        text = el.get_text(strip=True)
-        ai_id = el['data-ai-id']
-        
-        element_info = {"ai_id": ai_id, "tag": tag}
-        if text:
-            element_info["text"] = text
-        
-        if tag == 'a' and el.has_attr('href'):
-            element_info["href"] = el['href']
-        if tag == 'input' and el.has_attr('placeholder'):
-            element_info["placeholder"] = el['placeholder']
-            
-        elements.append(element_info)
-    return elements
-
-def get_next_action_with_ai(goal, current_url, element_map):
-    """AI menentukan langkah berikutnya berdasarkan 'peta' elemen yang sudah dilabeli."""
-    prompt = f"""
-    Anda adalah otak dari agen web scraper otonom yang sangat cerdas.
-    Tujuan akhir Anda: "{goal}"
-    Posisi Anda saat ini: "{current_url}"
-
-    Tugas Anda adalah memilih SATU langkah berikutnya yang paling efisien berdasarkan "peta elemen" di bawah ini.
-    Pilih salah satu dari aksi berikut dan kembalikan dalam format JSON:
-    1. {{ "action": "type", "ai_id": "ID_ELEMEN", "text": "TEKS_UNTUK_DIKETIK" }}: Jika Anda perlu mengetik di kolom pencarian.
-    2. {{ "action": "click", "ai_id": "ID_ELEMEN" }}: Jika Anda perlu mengklik link atau tombol.
-    3. {{ "action": "scrape" }}: HANYA jika Anda YAKIN sudah berada di halaman detail final yang berisi sinopsis, daftar chapter, dll.
-    4. {{ "action": "fail", "reason": "ALASAN_GAGAL" }}: Jika Anda buntu atau tidak bisa menemukan elemen yang relevan.
-
-    --- ATURAN KRITIS ---
-    - Jika URL saat ini mengandung parameter pencarian (contoh: "?s=") atau halaman ini jelas merupakan DAFTAR HASIL PENCARIAN, tugas utama Anda adalah **MENGKLIK** link yang paling relevan dengan tujuan "{goal}".
-    - **JANGAN** memilih 'scrape' di halaman daftar atau halaman hasil pencarian. Aksi 'scrape' hanya untuk halaman detail.
-    - Pilih 'ai_id' dari elemen yang paling relevan di peta. JANGAN BUAT SELECTOR SENDIRI.
-    --------------------
-
-    Peta Elemen Interaktif di Halaman Saat Ini:
-    ---
-    {json.dumps(element_map[:150], indent=2)}
-    ---
-    Berdasarkan tujuan, posisi, dan ATURAN KRITIS di atas, tentukan langkah berikutnya.
-    """
-    try:
-        response = MODEL.generate_content(prompt)
-        json_text = response.text.replace("```json", "").replace("```", "").strip()
-        if not json_text.startswith('{'):
-            return {'action': 'fail', 'reason': f'Respons AI tidak valid: {json_text}'}
-        return json.loads(json_text)
-    except Exception as e:
-        return {'action': 'fail', 'reason': f'Gagal memproses respons dari AI: {e}'}
-
-def scrape_details_with_ai(goal, html_content):
-    """AI mengekstrak semua data detail dari halaman final."""
-    # --- PERUBAHAN: Prompt dibuat lebih spesifik dengan contoh format ---
-    prompt = f"""
-    Anda adalah ahli scraper yang sangat teliti. Tujuan scraping adalah: "{goal}".
-    Dari HTML berikut, ekstrak semua informasi relevan ke dalam format JSON yang VALID dan KONSISTEN.
-
-    --- CONTOH FORMAT JSON YANG DIINGINKAN ---
-    {{
-      "title": "Judul Komik",
-      "author": "Nama Author",
-      "genre": ["Genre 1", "Genre 2"],
-      "type": "Tipe Komik (e.g., Manhwa)",
-      "status": "Status (e.g., Ongoing)",
-      "release_date": "Tanggal Rilis",
-      "rating": "Skor Rating",
-      "synopsis": "Paragraf sinopsis...",
-      "chapters": [
-        {{
-          "chapter_title": "Chapter 1",
-          "release_date": "Tanggal Rilis Chapter",
-          "url": "https://url-ke-chapter.com"
-        }},
-        {{
-          "chapter_title": "Chapter 2",
-          "release_date": "Tanggal Rilis Chapter",
-          "url": "https://url-ke-chapter.com"
-        }}
-      ]
-    }}
-    -----------------------------------------
-
-    ATURAN PENTING:
-    1. Ikuti format contoh di atas dengan SANGAT TELITI.
-    2. Pastikan JSON yang Anda hasilkan 100% valid. Perhatikan penggunaan koma (`,`) di antara item dalam daftar `chapters`.
-    3. Ekstrak SEMUA chapter yang tersedia dalam HTML.
-    4. Jika suatu informasi tidak dapat ditemukan, gunakan `null` sebagai nilainya.
-
-    HTML untuk di-scrape:
-    ---
-    {html_content[:40000]}
-    ---
-    """
-    try:
-        response = MODEL.generate_content(prompt)
-        json_text = response.text.replace("```json", "").replace("```", "").strip()
-        if not json_text.startswith('{'):
-             return {'error': f'AI gagal mengekstrak detail, respons tidak valid: {json_text}'}
-        return json.loads(json_text)
-    except Exception as e:
-        return {'error': f'AI gagal mengekstrak detail: {e}'}
-
-# --- EKSEKUTOR AKSI ---
-def execute_agent_loop(driver, goal):
-    """Menjalankan loop agen otonom hingga tujuan tercapai."""
-    max_steps = 10
-    for step in range(max_steps):
-        print(f"\n{Style.BRIGHT}--- Langkah {step + 1}/{max_steps} ---{Style.RESET_ALL}")
-        print(f"📍 Lokasi: {driver.current_url}")
-
-        html_with_ids = tag_interactive_elements(driver)
-        soup = BeautifulSoup(html_with_ids, 'html.parser')
-        element_map = get_element_map(soup)
-
-        action_plan = run_with_loading(get_next_action_with_ai, goal, driver.current_url, element_map)
-        action = action_plan.get('action')
-
+def call_api(endpoint, payload):
+    """Membuat panggilan ke backend API dengan spinner."""
+    with Spinner("dots", text="[cyan]🤖 Menghubungi server scraping...[/cyan]") as spinner:
         try:
-            if action in ["type", "click"]:
-                ai_id = action_plan.get('ai_id')
-                selector = f"[data-ai-id='{ai_id}']"
-                old_html_element = driver.find_element(By.TAG_NAME, "html")
-                
-                print(f"⏳ Menunggu elemen '{ai_id}' untuk bisa di-klik...")
-                wait = WebDriverWait(driver, 10)
-                element = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                
-                if action == "type":
-                    text = action_plan.get('text')
-                    print(f"🤖 Aksi: Mengetik '{text}' pada elemen '{ai_id}'")
-                    element.clear()
-                    element.send_keys(text)
-                    element.send_keys(Keys.RETURN)
-                elif action == "click":
-                    print(f"🤖 Aksi: Mengklik elemen '{ai_id}'")
-                    element.click()
-                
-                print("⏳ Menunggu halaman baru dimuat...")
-                WebDriverWait(driver, 15).until(EC.staleness_of(old_html_element))
-                
-                print("☕ Memberi waktu 2 detik bagi halaman untuk memuat konten dinamis...")
-                time.sleep(2)
-                
-                print("✅ Halaman baru berhasil dimuat.")
-
-            elif action == "scrape":
-                print(f"🤖 Aksi: Mempersiapkan halaman untuk scraping (scrolling)...")
-                try:
-                    last_height = driver.execute_script("return document.body.scrollHeight")
-                    for _ in range(5):
-                        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                        time.sleep(1.5)
-                        new_height = driver.execute_script("return document.body.scrollHeight")
-                        if new_height == last_height:
-                            print(" Mencapai dasar halaman.")
-                            break
-                        last_height = new_height
-                    print("✅ Halaman siap, semua konten telah dimuat.")
-                except Exception as scroll_e:
-                    print(f"{Fore.YELLOW}⚠️ Gagal melakukan scroll, melanjutkan dengan konten yang ada: {scroll_e}{Style.RESET_ALL}")
-                
-                print(f"🤖 Aksi: Scraping detail dari halaman saat ini...")
-                final_data = run_with_loading(scrape_details_with_ai, goal, driver.page_source)
-                
-                if 'error' in final_data:
-                    print(f"{Fore.RED}❌ {final_data['error']}{Style.RESET_ALL}")
-                else:
-                    print(f"{Fore.GREEN}✅ Scraping Selesai!{Style.RESET_ALL}")
-                    print(json.dumps(final_data, indent=2, ensure_ascii=False))
-                    if input(f"{Fore.YELLOW}Simpan ke file JSON? (y/n): {Style.RESET_ALL}").lower() == 'y':
-                        safe_filename = "".join([c for c in goal if c.isalpha() or c.isdigit() or c.isspace()]).rstrip()
-                        filename = safe_filename.replace(' ', '_').lower() + ".json"
-                        with open(filename, 'w', encoding='utf-8') as f:
-                            json.dump(final_data, f, ensure_ascii=False, indent=4)
-                        print(f"{Fore.GREEN}💾 Data berhasil disimpan ke: {filename}{Style.RESET_ALL}")
-                return
-
-            elif action == "fail":
-                print(f"{Fore.RED}❌ Agen gagal: {action_plan.get('reason')}{Style.RESET_ALL}")
-                return
-
-            else:
-                print(f"{Fore.RED}❌ Aksi tidak dikenali: {action}{Style.RESET_ALL}")
-                return
-        except Exception as e:
-            print(f"{Fore.RED}Gagal melakukan aksi '{action}': {e}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}Mencoba membuat rencana baru dari halaman saat ini...{Style.RESET_ALL}")
-            time.sleep(2)
-            continue
-            
-    print(f"{Fore.YELLOW}⚠️ Agen mencapai batas langkah maksimum.{Style.RESET_ALL}")
-
-
-# --- FUNGSI UTAMA ---
-def main():
-    driver = None
-    try:
-        os.system('cls' if os.name == 'nt' else 'clear')
-        print_header(None)
-        
-        driver = setup_driver()
-        if not driver: 
-            print(f"{Fore.RED}❌ Gagal memulai browser. Pastikan ChromeDriver sudah terinstal.{Style.RESET_ALL}")
-            exit()
-        
-        start_url = input(f"{Fore.YELLOW}🔗 Masukkan URL awal untuk memulai (e.g., https://komikcast.li): {Style.RESET_ALL}")
-        if not start_url.startswith(('http://', 'https://')):
-            start_url = 'https://' + start_url
-        
-        print(f"Memulai dari: {start_url}")
-        driver.get(start_url)
-        time.sleep(2)
-
-        while True:
-            print_header(driver)
-            user_goal = input(f"{Style.BRIGHT}{Fore.MAGENTA}DHANY SCRAPE > {Style.RESET_ALL}")
-            if user_goal.lower() in ['keluar', 'exit', 'quit']:
-                break
-            if not user_goal:
-                continue
-            
-            match = re.search(r'https?://[^\s]+', user_goal)
-            if match:
-                new_url = match.group(0)
-                if new_url != driver.current_url:
-                    print(f"Mengganti lokasi ke: {new_url}")
-                    driver.get(new_url)
-                    time.sleep(2)
-
-            execute_agent_loop(driver, user_goal)
-            print(f"\n{Fore.CYAN}{'═' * 74}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}Tugas selesai. Siap menerima perintah baru.{Style.RESET_ALL}")
-
-    except KeyboardInterrupt:
-        print(f"\n{Fore.YELLOW}Program dihentikan.{Style.RESET_ALL}")
-    finally:
-        if driver:
-            driver.quit()
-        print(f"{Fore.CYAN}DHANY SCRAPE terminated.{Style.RESET_ALL}")
-
-def setup_driver():
-    """Menyiapkan instance browser Chrome (disembunyikan)."""
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-    try:
-        service = Service(executable_path='/usr/bin/chromedriver')
-        driver = webdriver.Chrome(service=service, options=options)
-        return driver
-    except Exception:
-        try:
-            driver = webdriver.Chrome(options=options)
-            return driver
-        except Exception as e:
-            print(f"Error saat setup driver: {e}")
+            response = requests.post(urljoin(VERCEL_API_URL, endpoint), json=payload, timeout=60)
+            response.raise_for_status() # Error jika status code 4xx atau 5xx
+            res_json = response.json()
+            if res_json.get("status") == "error":
+                console.print(f"[bold red]❌ Error dari API: {res_json.get('message')}[/bold red]")
+                return None
+            return res_json.get("data")
+        except requests.exceptions.RequestException as e:
+            console.print(f"[bold red]❌ Gagal terhubung ke server: {e}[/bold red]")
+            console.print("[yellow]Pastikan backend API sudah berjalan atau URL Vercel sudah benar.[/yellow]")
             return None
+
+def get_ai_suggestion(goal, current_url, element_map):
+    """AI menentukan langkah berikutnya berdasarkan 'peta' elemen."""
+    prompt = f"""
+Anda adalah otak dari agen web scraper. Tujuan Anda: "{goal}". Posisi saat ini: "{current_url}".
+Tugas Anda: Pilih SATU aksi dari daftar berikut dalam format JSON: {{ "action": "ACTION_NAME", "details": {{...}} }}
+
+1. `navigate`: Jika Anda perlu mengklik sebuah link. Pilih `ai_id` dan `href` dari link yang paling relevan.
+   {{ "action": "navigate", "details": {{ "ai_id": "ID_LINK", "url": "URL_TUJUAN" }} }}
+2. `search`: Jika Anda perlu mengetik di kolom pencarian. Pilih `ai_id` dari input yang relevan.
+   {{ "action": "search", "details": {{ "ai_id": "ID_INPUT" }} }}
+3. `scrape`: HANYA jika Anda YAKIN sudah berada di halaman detail final yang berisi data komik.
+   {{ "action": "scrape", "details": {{}} }}
+4. `fail`: Jika Anda buntu.
+   {{ "action": "fail", "details": {{ "reason": "ALASAN_GAGAL" }} }}
+
+ATURAN:
+- Jika halaman ini adalah hasil pencarian, prioritas utama adalah `navigate` ke link yang paling relevan.
+- JANGAN memilih `scrape` di halaman daftar.
+
+Peta Elemen Interaktif:
+---
+{json.dumps(element_map[:100], indent=2)}
+---
+Tentukan langkah berikutnya.
+    """
+    try:
+        with Spinner("dots", text="[cyan]🧠 AI sedang berpikir...[/cyan]") as spinner:
+            response = AI_MODEL.generate_content(prompt)
+            json_text = response.text.replace("```json", "").replace("```", "").strip()
+            return json.loads(json_text)
+    except Exception as e:
+        return {{'action': 'fail', 'details': {{'reason': f'Gagal memproses respons AI: {e}'}}}}
+
+# --- Alur Kerja Utama (CLI) ---
+
+def interactive_session():
+    """Memulai dan mengelola sesi scraping interaktif."""
+    console.print("\n[bold green]🚀 Memulai Sesi Scraping Baru...[/bold green]")
+    start_url = questionary.text(
+        "🔗 Masukkan URL awal:",
+        validate=lambda text: text.startswith("http") or "URL tidak valid",
+    ).ask()
+
+    if not start_url: return
+
+    goal = questionary.text("🎯 Apa judul komik yang ingin Anda cari?").ask()
+    if not goal: return
+
+    current_url = start_url
+    while True:
+        page_data = call_api("/api/navigate", {"url": current_url})
+        if not page_data: break
+
+        current_url = page_data['current_url']
+        elements = page_data['elements']
+
+        ai_suggestion = get_ai_suggestion(goal, current_url, elements)
+
+        console.print(Panel(
+            f"[bold]Lokasi:[/bold] [cyan]{current_url}[/cyan]\n[bold]Judul Halaman:[/bold] [yellow]{page_data['title']}[/yellow]",
+            title="[bold blue]Dashboard Sesi[/bold blue]",
+            border_style="blue"
+        ))
+        console.print(f"[italic magenta]🤖 Saran AI: {ai_suggestion.get('action', 'N/A')}[/italic magenta]")
+
+        # --- Membangun Menu Aksi ---
+        choices = []
+        # 1. Tambahkan saran AI sebagai pilihan utama
+        if ai_suggestion and ai_suggestion.get('action') != 'fail':
+            choices.append(questionary.Choice(title=f"✅ [AI] {ai_suggestion['action']}", value=ai_suggestion))
+
+        # 2. Tambahkan opsi scrape manual
+        choices.append(questionary.Choice(title="📄 Lakukan Scrape Halaman Ini", value={"action": "scrape"}))
+        
+        # 3. Tambahkan opsi navigasi manual
+        link_choices = [el for el in elements if el['tag'] == 'a' and el.get('text')][:5]
+        if link_choices:
+            choices.append(questionary.Separator("--- Klik Link Lain ---"))
+            for link in link_choices:
+                choices.append(questionary.Choice(
+                    title=f"  -> {link['text']:.50}", 
+                    value={"action": "navigate", "details": {"url": link['href']}}
+                ))
+
+        # 4. Tambahkan opsi keluar
+        choices.append(questionary.Separator())
+        choices.append(questionary.Choice(title="🔙 Kembali ke Menu Utama", value={"action": "exit"}))
+
+        user_choice = questionary.select("Pilih aksi selanjutnya:", choices=choices).ask()
+
+        if not user_choice or user_choice['action'] == 'exit':
+            break
+
+        # --- Eksekusi Aksi Pilihan User ---
+        action = user_choice['action']
+        if action == 'navigate':
+            current_url = user_choice['details']['url']
+            continue
+        
+        if action == 'scrape':
+            console.print("[bold green]⏳ Meminta HTML lengkap untuk di-scrape...[/bold green]")
+            full_page_data = call_api("/api/navigate", {"url": current_url})
+            if not full_page_data: continue
+
+            console.print("[bold green]🤖 Mengirim HTML ke AI untuk diekstrak...[/bold green]")
+            scraped_data = call_api("/api/scrape", {"html_content": str(full_page_data), "goal": goal})
+            
+            if scraped_data:
+                console.print(Panel("[bold green]✅ Scraping Selesai![/bold green]", border_style="green"))
+                json_str = json.dumps(scraped_data, indent=2, ensure_ascii=False)
+                console.print(Syntax(json_str, "json", theme="monokai", line_numbers=True))
+            break # Selesai setelah scrape
+
+def main():
+    """Menjalankan loop menu utama."""
+    while True:
+        print_header()
+        choice = questionary.select(
+            "Pilih menu utama:",
+            choices=[
+                questionary.Choice("🚀 Mulai Sesi Scraping Baru", value="start"),
+                questionary.Choice("退出 Keluar", value="exit"),
+            ]
+        ).ask()
+
+        if choice == "start":
+            interactive_session()
+        elif choice == "exit" or not choice:
+            console.print("[bold yellow]👋 Sampai jumpa![/bold yellow]")
+            break
 
 if __name__ == "__main__":
     main()
