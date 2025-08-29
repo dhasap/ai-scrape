@@ -7,6 +7,8 @@ from bs4 import BeautifulSoup
 import google.generativeai as genai
 from playwright.async_api import async_playwright
 import json
+from urllib.parse import urljoin
+import sparticuz_chromium
 
 # --- Konfigurasi ---
 try:
@@ -33,7 +35,11 @@ async def get_page_elements(url: str):
     """Menggunakan Playwright untuk membuka URL dan mengekstrak elemen interaktif."""
     async with async_playwright() as p:
         try:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(
+                executable_path=await sparticuz_chromium.executable_path(),
+                headless=sparticuz_chromium.headless,
+                args=sparticuz_chromium.args
+            )
             page = await browser.new_page()
             await page.goto(url, wait_until='domcontentloaded', timeout=30000)
 
