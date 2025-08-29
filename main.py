@@ -4,7 +4,7 @@ import json
 import sys
 from urllib.parse import urljoin
 
-import google.generativeai as genai
+
 import requests
 import questionary
 from rich.console import Console
@@ -19,16 +19,9 @@ load_dotenv()
 console = Console()
 
 # PENTING: Ganti dengan URL Vercel Anda setelah deploy!
-VERCEL_API_URL = os.environ.get("VERCEL_API_URL", "http://127.0.0.1:8000") 
-
-try:
-    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-    if not GEMINI_API_KEY:
-        raise ValueError("API Key Gemini tidak ditemukan di .env")
-    genai.configure(api_key=GEMINI_API_KEY)
-    AI_MODEL = genai.GenerativeModel('gemini-1.5-flash')
-except ValueError as e:
-    console.print(f"[bold red]❌ Error Konfigurasi: {e}[/bold red]")
+VERCEL_API_URL = os.environ.get("VERCEL_API_URL") 
+if not VERCEL_API_URL:
+    console.print("[bold red]❌ Error Konfigurasi: VERCEL_API_URL tidak ditemukan di .env[/bold red]")
     sys.exit(1)
 
 # --- Komponen Tampilan ---
@@ -47,52 +40,29 @@ def print_header():
 
 def call_api(endpoint, payload):
     """Membuat panggilan ke backend API dengan spinner."""
-    with Spinner("dots", text="[cyan]🤖 Menghubungi server scraping...[/cyan]") as spinner:
+    spinner_text = "[cyan]🤖 Menghubungi server scraping...[/cyan]"
+    if "suggest_action" in endpoint:
+        spinner_text = "[cyan]🧠 AI sedang berpikir via backend...[/cyan]"
+
+    with Spinner("dots", text=spinner_text) as spinner:
         try:
-            response = requests.post(urljoin(VERCEL_API_URL, endpoint), json=payload, timeout=60)
+            response = requests.post(urljoin(VERCEL_API_URL, endpoint), json=payload, timeout=120) # Timeout diperpanjang
             response.raise_for_status() # Error jika status code 4xx atau 5xx
             res_json = response.json()
             if res_json.get("status") == "error":
                 console.print(f"[bold red]❌ Error dari API: {res_json.get('message')}[/bold red]")
                 return None
             return res_json.get("data")
+        except requests.exceptions.Timeout:
+            console.print("[bold red]❌ Gagal terhubung ke server: Request timeout.[/bold red]")
+            console.print("[yellow]Server mungkin sedang sibuk atau butuh waktu lebih lama untuk memproses. Coba lagi.[/yellow]")
+            return None
         except requests.exceptions.RequestException as e:
             console.print(f"[bold red]❌ Gagal terhubung ke server: {e}[/bold red]")
             console.print("[yellow]Pastikan backend API sudah berjalan atau URL Vercel sudah benar.[/yellow]")
             return None
 
-def get_ai_suggestion(goal, current_url, element_map):
-    """AI menentukan langkah berikutnya berdasarkan 'peta' elemen."""
-    prompt = f"""
-Anda adalah otak dari agen web scraper. Tujuan Anda: "{goal}". Posisi saat ini: "{current_url}".
-Tugas Anda: Pilih SATU aksi dari daftar berikut dalam format JSON: {{ "action": "ACTION_NAME", "details": {{...}} }}
 
-1. `navigate`: Jika Anda perlu mengklik sebuah link. Pilih `ai_id` dan `href` dari link yang paling relevan.
-   {{ "action": "navigate", "details": {{ "ai_id": "ID_LINK", "url": "URL_TUJUAN" }} }}
-2. `search`: Jika Anda perlu mengetik di kolom pencarian. Pilih `ai_id` dari input yang relevan.
-   {{ "action": "search", "details": {{ "ai_id": "ID_INPUT" }} }}
-3. `scrape`: HANYA jika Anda YAKIN sudah berada di halaman detail final yang berisi data komik.
-   {{ "action": "scrape", "details": {{}} }}
-4. `fail`: Jika Anda buntu.
-   {{ "action": "fail", "details": {{ "reason": "ALASAN_GAGAL" }} }}
-
-ATURAN:
-- Jika halaman ini adalah hasil pencarian, prioritas utama adalah `navigate` ke link yang paling relevan.
-- JANGAN memilih `scrape` di halaman daftar.
-
-Peta Elemen Interaktif:
----
-{json.dumps(element_map[:100], indent=2)}
----
-Tentukan langkah berikutnya.
-    """
-    try:
-        with Spinner("dots", text="[cyan]🧠 AI sedang berpikir...[/cyan]") as spinner:
-            response = AI_MODEL.generate_content(prompt)
-            json_text = response.text.replace("```json", "").replace("```", "").strip()
-            return json.loads(json_text)
-    except Exception as e:
-        return {{'action': 'fail', 'details': {{'reason': f'Gagal memproses respons AI: {e}'}}}}
 
 # --- Alur Kerja Utama (CLI) ---
 
@@ -110,14 +80,27 @@ def interactive_session():
     if not goal: return
 
     current_url = start_url
+    page_data = None # Inisialisasi page_data
+
     while True:
-        page_data = call_api("/api/navigate", {"url": current_url})
-        if not page_data: break
+        # Selalu dapatkan data halaman baru di setiap iterasi
+        new_page_data = call_api("/api/navigate", {"url": current_url})
+        if not new_page_data:
+            break
+        page_data = new_page_data
 
         current_url = page_data['current_url']
         elements = page_data['elements']
 
-        ai_suggestion = get_ai_suggestion(goal, current_url, elements)
+        # Meminta saran AI dari backend
+        ai_suggestion = call_api("/api/suggest_action", {
+            "goal": goal,
+            "current_url": current_url,
+            "elements": elements
+        })
+        
+        if not ai_suggestion:
+            ai_suggestion = {} # Buat objek kosong jika gagal mendapatkan saran
 
         console.print(Panel(
             f"[bold]Lokasi:[/bold] [cyan]{current_url}[/cyan]\n[bold]Judul Halaman:[/bold] [yellow]{page_data['title']}[/yellow]",
@@ -161,18 +144,22 @@ def interactive_session():
             continue
         
         if action == 'scrape':
-            console.print("[bold green]⏳ Meminta HTML lengkap untuk di-scrape...[/bold green]")
-            full_page_data = call_api("/api/navigate", {"url": current_url})
-            if not full_page_data: continue
+            if not page_data or 'html' not in page_data:
+                console.print("[bold yellow]⚠️ HTML tidak ditemukan, meminta ulang dari server...[/bold yellow]")
+                page_data = call_api("/api/navigate", {"url": current_url})
+                if not page_data or 'html' not in page_data:
+                    console.print("[bold red]❌ Gagal mendapatkan HTML untuk scraping.[/bold red]")
+                    break
 
             console.print("[bold green]🤖 Mengirim HTML ke AI untuk diekstrak...[/bold green]")
-            scraped_data = call_api("/api/scrape", {"html_content": str(full_page_data), "goal": goal})
+            scraped_data = call_api("/api/scrape", {"html_content": page_data['html'], "goal": goal})
             
             if scraped_data:
                 console.print(Panel("[bold green]✅ Scraping Selesai![/bold green]", border_style="green"))
                 json_str = json.dumps(scraped_data, indent=2, ensure_ascii=False)
                 console.print(Syntax(json_str, "json", theme="monokai", line_numbers=True))
             break # Selesai setelah scrape
+
 
 def main():
     """Menjalankan loop menu utama."""
