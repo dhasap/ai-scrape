@@ -2,5 +2,4 @@ requests
 rich
 questionary
 pyfiglet
-google-generativeai
 python-dotenv
