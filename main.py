@@ -1,4 +1,4 @@
-# main.py (v10.6 - Alur Detail & Selesai)
+# main.py (v10.7 - Alur Kerja Cerdas)
 import os
 import json
 import sys
@@ -39,7 +39,7 @@ if not API_URLS:
 
 def print_header():
     ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
-    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="[white]Universal AI Comic Scraper[/white]", subtitle="[green]v10.6 - Alur Detail & Selesai[/green]", border_style="blue"))
+    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="[white]Universal AI Comic Scraper[/white]", subtitle="[green]v10.7 - Alur Kerja Cerdas[/green]", border_style="blue"))
 
 # --- Logika Interaksi Backend & AI ---
 
@@ -74,6 +74,7 @@ def interactive_session():
     goal = None
     page_num = 1
     results_per_page = 6
+    last_search_url = None 
 
     while True:
         page_data = call_api("/api/navigate", {"url": current_url})
@@ -81,23 +82,19 @@ def interactive_session():
 
         current_url = page_data['current_url']
         search_results = page_data.get('search_results', [])
-        other_elements = page_data.get('other_elements', [])
         
         console.print(Panel(f"[bold]Lokasi:[/bold] [cyan]{current_url}[/cyan]\n[bold]Judul Halaman:[/bold] [yellow]{page_data['title']}[/yellow]", title="[bold blue]Dashboard Sesi[/bold blue]"))
 
-        ai_suggestion = None
         if goal:
             console.print(f"🎯 Tujuan saat ini: [bold yellow]{goal}[/bold yellow]")
-            ai_suggestion = call_api("/api/suggest_action", {"goal": goal, "current_url": current_url, "elements": other_elements})
-            if ai_suggestion: console.print(f"[italic magenta]🤖 Saran AI: {ai_suggestion.get('action', 'N/A')}[/italic magenta]")
 
         choices = []
-        choices.append(questionary.Choice(title="🔎 Cari Komik di Situs Ini", value={"action": "search"}))
-
+        
         # --- PERUBAHAN: Tampilan menu cerdas berdasarkan konteks ---
         
         # KONTEKS 1: Jika ada hasil pencarian, tampilkan hasilnya
         if search_results:
+            last_search_url = current_url
             choices.append(questionary.Separator("--- Hasil Pencarian ---"))
             start_index = (page_num - 1) * results_per_page
             end_index = start_index + results_per_page
@@ -117,28 +114,17 @@ def interactive_session():
         # KONTEKS 2: Jika TIDAK ada hasil pencarian TAPI ADA 'goal', asumsikan ini halaman detail
         elif goal and not search_results:
             choices.append(questionary.Separator("--- Aksi Halaman Detail ---"))
-            # Opsi scrape menjadi yang utama
-            if ai_suggestion and ai_suggestion.get('action') == 'scrape':
-                choices.append(questionary.Choice(title=f"✅ [AI] {ai_suggestion['action']} halaman ini", value=ai_suggestion))
-            choices.append(questionary.Choice(title="📄 Lakukan Scrape Halaman Ini", value={"action": "scrape"}))
-            choices.append(questionary.Separator("--- Navigasi Lain ---"))
+            choices.append(questionary.Choice(title="📄 Scrape Detail Komik Ini", value={"action": "scrape"}))
+            if last_search_url:
+                choices.append(questionary.Choice(title="🔙 Kembali ke Hasil Pencarian", value={"action": "go_back_to_search"}))
 
-        # Tambahkan saran AI jika ada dan belum ditambahkan
-        if ai_suggestion and ai_suggestion.get('action') != 'fail' and (not goal or search_results):
-             choices.append(questionary.Choice(title=f"✅ [AI] {ai_suggestion['action']}", value=ai_suggestion))
+        # Opsi cari komik selalu ada di atas (kecuali di halaman detail)
+        if not (goal and not search_results):
+             choices.insert(0, questionary.Choice(title="🔎 Cari Komik di Situs Ini", value={"action": "search"}))
 
-        # Opsi navigasi fallback jika tidak ada hasil pencarian dan bukan halaman detail
-        if not search_results:
-            link_choices = [el for el in other_elements if el['tag'] == 'a' and el.get('text')][:5]
-            if link_choices:
-                # Hindari duplikasi jika sudah ada di Aksi Halaman Detail
-                if not (goal and not search_results):
-                    choices.append(questionary.Separator("--- Klik Link Lain ---"))
-                for link in link_choices:
-                    choices.append(questionary.Choice(title=f"  -> {link['text']:.50}", value={"action": "navigate", "details": {"url": link['href']}}))
-
+        # Menu keluar
         choices.append(questionary.Separator())
-        choices.append(questionary.Choice(title="🔙 Kembali ke Menu Utama", value={"action": "exit"}))
+        choices.append(questionary.Choice(title="🏠 Kembali ke Menu Utama", value={"action": "exit"}))
 
         user_choice = questionary.select("Pilih aksi selanjutnya:", choices=choices).ask()
 
@@ -157,6 +143,11 @@ def interactive_session():
                 current_url = f"{base_url}?{urlencode({'s': goal})}"
             continue
         
+        if action == 'go_back_to_search':
+            if last_search_url:
+                current_url = last_search_url
+            continue
+
         if action == 'next_page': page_num += 1; continue
         if action == 'prev_page': page_num -= 1; continue
         if action == 'navigate': current_url = user_choice['details']['url']; continue
@@ -169,9 +160,8 @@ def interactive_session():
             if scraped_data:
                 console.print(Panel("[bold green]✅ Scraping Selesai![/bold green]", border_style="green"))
                 console.print(Syntax(json.dumps(scraped_data, indent=2, ensure_ascii=False), "json", theme="monokai", line_numbers=True))
-                # --- PERUBAHAN: Alur setelah scrape lebih mulus ---
                 console.print("\n[bold green]Tugas selesai. Kembali ke menu utama...[/bold green]")
-                time.sleep(2)
+                time.sleep(3)
             break
 
 def main():
