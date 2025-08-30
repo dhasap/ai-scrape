@@ -1,9 +1,8 @@
-# main.py (v10.1 - Peningkatan Konfigurasi & Stabilitas)
+# main.py (v10.2 - Alur Kerja Logis)
 import os
 import json
 import sys
-from urllib.parse import urljoin
-
+from urllib.parse import urljoin, urlparse, urlunparse, urlencode
 
 import requests
 import questionary
@@ -46,14 +45,14 @@ def print_header():
     console.print(Panel(
         f"[bold cyan]{ascii_art}[/bold cyan]",
         title="[white]Universal AI Comic Scraper[/white]",
-        subtitle="[green]v10.1 - CLI Client[/green]",
+        subtitle="[green]v10.2 - Alur Kerja Logis[/green]",
         border_style="blue"
     ))
 
 # --- Logika Interaksi Backend & AI ---
 
 def call_api(endpoint, payload):
-    """Membuat panggilan ke backend API dengan spinner."""
+    """Membuat panggilan ke backend API dengan status loading."""
     spinner_text = "[cyan]🤖 Menghubungi server scraping...[/cyan]"
     if "suggest_action" in endpoint:
         spinner_text = "[cyan]🧠 AI sedang berpikir via backend...[/cyan]"
@@ -90,61 +89,68 @@ def call_api(endpoint, payload):
 # --- Alur Kerja Utama (CLI) ---
 
 def interactive_session():
-    """Memulai dan mengelola sesi scraping interaktif."""
+    """Memulai dan mengelola sesi scraping interaktif dengan alur kerja baru."""
     console.print("\n[bold green]🚀 Memulai Sesi Scraping Baru...[/bold green]")
     start_url = questionary.text(
-        "🔗 Masukkan URL awal:",
+        "🔗 Masukkan URL awal (misal: https://komikcast.li):",
         validate=lambda text: text.startswith("http") or "URL tidak valid",
     ).ask()
 
     if not start_url: return
 
-    goal = questionary.text("🎯 Apa judul komik yang ingin Anda cari?").ask()
-    if not goal: return
-
     current_url = start_url
-    page_data = None
+    goal = None # Tujuan (judul komik) akan diatur nanti
 
     while True:
-        new_page_data = call_api("/api/navigate", {"url": current_url})
-        if not new_page_data:
+        page_data = call_api("/api/navigate", {"url": current_url})
+        if not page_data:
             break
-        page_data = new_page_data
 
         current_url = page_data['current_url']
         elements = page_data['elements']
-
-        ai_suggestion = call_api("/api/suggest_action", {
-            "goal": goal,
-            "current_url": current_url,
-            "elements": elements
-        })
-
-        if not ai_suggestion:
-            ai_suggestion = {}
 
         console.print(Panel(
             f"[bold]Lokasi:[/bold] [cyan]{current_url}[/cyan]\n[bold]Judul Halaman:[/bold] [yellow]{page_data['title']}[/yellow]",
             title="[bold blue]Dashboard Sesi[/bold blue]",
             border_style="blue"
         ))
-        console.print(f"[italic magenta]🤖 Saran AI: {ai_suggestion.get('action', 'N/A')}[/italic magenta]")
 
+        # --- Dapatkan Saran AI HANYA JIKA 'goal' sudah ada ---
+        ai_suggestion = None
+        if goal:
+            console.print(f"🎯 Tujuan saat ini: [bold yellow]{goal}[/bold yellow]")
+            ai_suggestion = call_api("/api/suggest_action", {
+                "goal": goal,
+                "current_url": current_url,
+                "elements": elements
+            })
+            if ai_suggestion:
+                 console.print(f"[italic magenta]🤖 Saran AI: {ai_suggestion.get('action', 'N/A')}[/italic magenta]")
+
+
+        # --- Membangun Menu Aksi ---
         choices = []
+        # 1. Tambahkan opsi pencarian sebagai aksi utama
+        choices.append(questionary.Choice(title="🔎 Cari Komik di Situs Ini", value={"action": "search"}))
+
+        # 2. Tambahkan saran AI jika ada
         if ai_suggestion and ai_suggestion.get('action') != 'fail':
             choices.append(questionary.Choice(title=f"✅ [AI] {ai_suggestion['action']}", value=ai_suggestion))
 
+        # 3. Tambahkan opsi scrape manual
         choices.append(questionary.Choice(title="📄 Lakukan Scrape Halaman Ini", value={"action": "scrape"}))
-
+        
+        # 4. Tambahkan opsi navigasi manual
         link_choices = [el for el in elements if el['tag'] == 'a' and el.get('text')][:5]
         if link_choices:
             choices.append(questionary.Separator("--- Klik Link Lain ---"))
             for link in link_choices:
                 choices.append(questionary.Choice(
-                    title=f"  -> {link['text']:.50}",
+                    title=f"  -> {link['text']:.50}", 
                     value={"action": "navigate", "details": {"url": link['href']}}
                 ))
 
+        # 5. Tambahkan opsi keluar
         choices.append(questionary.Separator())
         choices.append(questionary.Choice(title="🔙 Kembali ke Menu Utama", value={"action": "exit"}))
 
@@ -153,27 +159,42 @@ def interactive_session():
         if not user_choice or user_choice['action'] == 'exit':
             break
 
+        # --- Eksekusi Aksi Pilihan User ---
         action = user_choice['action']
+        
+        if action == 'search':
+            search_query = questionary.text("Masukkan judul komik yang ingin dicari:").ask()
+            if search_query:
+                goal = search_query # Atur tujuan baru
+                # Membuat URL pencarian yang benar
+                parsed_url = urlparse(current_url)
+                query_params = {'s': goal}
+                # Menggunakan base URL (scheme + netloc)
+                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                search_url = f"{base_url}?{urlencode(query_params)}"
+                current_url = search_url
+                console.print(f"🔎 Mencari di: [cyan]{current_url}[/cyan]")
+            continue # Kembali ke awal loop untuk navigasi ke URL pencarian
+
         if action == 'navigate':
             current_url = user_choice['details']['url']
             continue
-
+        
         if action == 'scrape':
-            if not page_data or 'html' not in page_data:
-                console.print("[bold yellow]⚠️ HTML tidak ditemukan, meminta ulang dari server...[/bold yellow]")
-                page_data = call_api("/api/navigate", {"url": current_url})
-                if not page_data or 'html' not in page_data:
-                    console.print("[bold red]❌ Gagal mendapatkan HTML untuk scraping.[/bold red]")
-                    break
+            if not goal:
+                goal = questionary.text("🎯 Apa tujuan scraping Anda untuk halaman ini?").ask()
+                if not goal:
+                    console.print("[bold red]Tujuan scraping dibutuhkan untuk melanjutkan.[/bold red]")
+                    continue
 
             console.print("[bold green]🤖 Mengirim HTML ke AI untuk diekstrak...[/bold green]")
             scraped_data = call_api("/api/scrape", {"html_content": page_data['html'], "goal": goal})
-
+            
             if scraped_data:
                 console.print(Panel("[bold green]✅ Scraping Selesai![/bold green]", border_style="green"))
                 json_str = json.dumps(scraped_data, indent=2, ensure_ascii=False)
                 console.print(Syntax(json_str, "json", theme="monokai", line_numbers=True))
-            break
+            break # Selesai setelah scrape
 
 
 def main():
