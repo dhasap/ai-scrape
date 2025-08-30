@@ -10,16 +10,16 @@ import questionary
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
-from rich.spinner import Spinner
+from rich.status import Status
 from dotenv import load_dotenv
 import pyfiglet
 
-# --- Konfigurasi --- 
+# --- Konfigurasi ---
 load_dotenv()
 console = Console()
 
 # PENTING: Ganti dengan URL Vercel Anda setelah deploy!
-VERCEL_API_URL = os.environ.get("VERCEL_API_URL") 
+VERCEL_API_URL = os.environ.get("VERCEL_API_URL")
 if not VERCEL_API_URL:
     console.print("[bold red]❌ Error Konfigurasi: VERCEL_API_URL tidak ditemukan di .env[/bold red]")
     sys.exit(1)
@@ -44,7 +44,8 @@ def call_api(endpoint, payload):
     if "suggest_action" in endpoint:
         spinner_text = "[cyan]🧠 AI sedang berpikir via backend...[/cyan]"
 
-    with Spinner("dots", text=spinner_text) as spinner:
+    # FIX: Menggunakan console.status() yang merupakan cara benar untuk context manager di rich
+    with console.status(spinner_text, spinner="dots"):
         try:
             response = requests.post(urljoin(VERCEL_API_URL, endpoint), json=payload, timeout=120) # Timeout diperpanjang
             response.raise_for_status() # Error jika status code 4xx atau 5xx
@@ -98,7 +99,7 @@ def interactive_session():
             "current_url": current_url,
             "elements": elements
         })
-        
+
         if not ai_suggestion:
             ai_suggestion = {} # Buat objek kosong jika gagal mendapatkan saran
 
@@ -117,14 +118,14 @@ def interactive_session():
 
         # 2. Tambahkan opsi scrape manual
         choices.append(questionary.Choice(title="📄 Lakukan Scrape Halaman Ini", value={"action": "scrape"}))
-        
+
         # 3. Tambahkan opsi navigasi manual
         link_choices = [el for el in elements if el['tag'] == 'a' and el.get('text')][:5]
         if link_choices:
             choices.append(questionary.Separator("--- Klik Link Lain ---"))
             for link in link_choices:
                 choices.append(questionary.Choice(
-                    title=f"  -> {link['text']:.50}", 
+                    title=f"  -> {link['text']:.50}",
                     value={"action": "navigate", "details": {"url": link['href']}}
                 ))
 
@@ -142,7 +143,7 @@ def interactive_session():
         if action == 'navigate':
             current_url = user_choice['details']['url']
             continue
-        
+
         if action == 'scrape':
             if not page_data or 'html' not in page_data:
                 console.print("[bold yellow]⚠️ HTML tidak ditemukan, meminta ulang dari server...[/bold yellow]")
@@ -153,7 +154,7 @@ def interactive_session():
 
             console.print("[bold green]🤖 Mengirim HTML ke AI untuk diekstrak...[/bold green]")
             scraped_data = call_api("/api/scrape", {"html_content": page_data['html'], "goal": goal})
-            
+
             if scraped_data:
                 console.print(Panel("[bold green]✅ Scraping Selesai![/bold green]", border_style="green"))
                 json_str = json.dumps(scraped_data, indent=2, ensure_ascii=False)
