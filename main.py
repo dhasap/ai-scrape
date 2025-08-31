@@ -1,4 +1,4 @@
-# main.py (v12.1 - The Final Version)
+# main.py (v12.2 - Smart Tools & Brain)
 import os
 import json
 import sys
@@ -28,7 +28,7 @@ if not API_URLS:
 # --- Komponen Tampilan & Logika API ---
 def print_header():
     ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
-    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v12.1 - The Final Version"))
+    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v12.2 - Smart Tools & Brain"))
 
 def call_api(endpoint, payload):
     for i, base_url in enumerate(API_URLS):
@@ -117,19 +117,17 @@ def interactive_session():
         
         console.print(Panel(f"Lokasi: [cyan]{current_url}[/cyan]\nJudul Halaman: [yellow]{page_data['title']}[/yellow]", title="Dashboard Sesi"))
         
-        # --- PERBAIKAN BESAR: Logika Menu Co-pilot ---
         action = None
         user_choice = None
         show_regular_menu = True
 
-        # Tampilkan Menu Konfirmasi Co-pilot HANYA jika modenya pas dan ada saran
         if is_exploration_mode and contextual_suggestion:
             console.print(f"[italic magenta]🤖 [Co-pilot] Saran: {contextual_suggestion.get('suggestion_text', 'N/A')}[/italic magenta]")
             
+            # --- PERBAIKAN: Menu Co-pilot yang bersih dan cerdas ---
             copilot_choices = [
-                questionary.Choice(title=f"✅ Jalankan Saran: {contextual_suggestion.get('suggestion_text')}", value="do_it"),
+                questionary.Choice(title="✅ Jalankan Saran Ini", value="do_it"),
                 questionary.Choice(title="❌ Abaikan & Lihat Opsi Lain", value="ignore"),
-                questionary.Choice(title="🔄 Kembali ke Halaman Awal Sesi", value="go_to_start")
             ]
             
             copilot_action = questionary.select("--- Saran Co-pilot ---", choices=copilot_choices).ask()
@@ -138,16 +136,11 @@ def interactive_session():
                 action = "exit_session"
                 show_regular_menu = False
             elif copilot_action == 'do_it':
-                # Gunakan info dari saran AI untuk menentukan aksi dan tujuan
-                action = contextual_suggestion.get('scrape_action', 'scrape') # scrape_list atau scrape_detail
+                action = contextual_suggestion.get('scrape_action', 'scrape_detail')
                 goal = contextual_suggestion.get('suggestion_text', 'Data dari halaman ' + page_data['title'])
                 show_regular_menu = False
-            elif copilot_action == 'go_to_start':
-                action = 'go_to_start'
-                show_regular_menu = False
-            # Jika 'ignore', show_regular_menu tetap True dan akan jatuh ke blok menu reguler
+            # Jika 'ignore', show_regular_menu tetap True
 
-        # Tampilkan menu reguler jika tidak ada saran Co-pilot atau jika saran diabaikan
         if show_regular_menu:
             choices = []
             if search_results:
@@ -198,7 +191,6 @@ def interactive_session():
             time.sleep(1)
             break 
         
-        # Mengatur mode AI berdasarkan aksi pengguna
         if action in ['search', 'navigate']: is_exploration_mode = False
         elif action in ['navigate_explore', 'go_to_start', 'go_back_to_search']: is_exploration_mode = True
 
@@ -217,17 +209,16 @@ def interactive_session():
             if not goal: goal = questionary.text("🎯 Apa tujuan scraping Anda?").ask()
             if not goal: continue
             
-            # Memilih endpoint yang tepat berdasarkan aksi
+            # --- PERBAIKAN: Memilih endpoint yang tepat berdasarkan aksi ---
             endpoint = "/api/scrape" if action == 'scrape_detail' else "/api/scrape_list"
             scraped_data = call_api(endpoint, {"html_content": page_data['html'], "goal": goal})
             
             if scraped_data:
-                # Logika setelah scrape detail vs scrape list bisa dibedakan di sini jika perlu
                 if action == 'scrape_detail':
                     next_action_url = post_scrape_session(scraped_data, current_url, last_search_url, start_url)
                     if next_action_url == "exit_session": break
                     current_url = next_action_url
-                else: # Untuk scrape_list
+                else: 
                     console.print(Panel("[bold green]✅ Ekstraksi Daftar Selesai![/bold green]", border_style="green"))
                     console.print(Syntax(json.dumps(scraped_data, indent=2, ensure_ascii=False), "json", theme="monokai"))
                     input("\nTekan Enter untuk melanjutkan...")
