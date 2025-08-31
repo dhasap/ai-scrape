@@ -1,4 +1,4 @@
-# main.py (v12.0 - Polite AI)
+# main.py (v12.1 - The Final Version)
 import os
 import json
 import sys
@@ -28,7 +28,7 @@ if not API_URLS:
 # --- Komponen Tampilan & Logika API ---
 def print_header():
     ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
-    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v12.0 - Polite AI"))
+    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v12.1 - The Final Version"))
 
 def call_api(endpoint, payload):
     for i, base_url in enumerate(API_URLS):
@@ -48,7 +48,6 @@ def call_api(endpoint, payload):
     return None
 
 # --- ALUR KERJA: Halaman Chapter & Post-Scrape ---
-# (Tidak ada perubahan di kedua fungsi ini, sudah stabil)
 def chapter_session(chapter_url, detail_url, last_search_url, start_url):
     current_chapter_url = chapter_url
     while True:
@@ -104,7 +103,6 @@ def interactive_session():
 
     current_url, goal, last_search_url, page_num = start_url, None, None, 1
     results_per_page = 6
-    # --- PERBAIKAN: Mode penjelajahan diawali sebagai False ---
     is_exploration_mode = False 
 
     while True:
@@ -119,16 +117,18 @@ def interactive_session():
         
         console.print(Panel(f"Lokasi: [cyan]{current_url}[/cyan]\nJudul Halaman: [yellow]{page_data['title']}[/yellow]", title="Dashboard Sesi"))
         
+        # --- PERBAIKAN BESAR: Logika Menu Co-pilot ---
         action = None
         user_choice = None
         show_regular_menu = True
 
+        # Tampilkan Menu Konfirmasi Co-pilot HANYA jika modenya pas dan ada saran
         if is_exploration_mode and contextual_suggestion:
             console.print(f"[italic magenta]🤖 [Co-pilot] Saran: {contextual_suggestion.get('suggestion_text', 'N/A')}[/italic magenta]")
             
             copilot_choices = [
-                questionary.Choice(title=f"✅ Lakukan: {contextual_suggestion.get('suggestion_text')}", value="do_it"),
-                questionary.Choice(title="❌ Abaikan & Lihat Opsi Navigasi Lain", value="ignore"),
+                questionary.Choice(title=f"✅ Jalankan Saran: {contextual_suggestion.get('suggestion_text')}", value="do_it"),
+                questionary.Choice(title="❌ Abaikan & Lihat Opsi Lain", value="ignore"),
                 questionary.Choice(title="🔄 Kembali ke Halaman Awal Sesi", value="go_to_start")
             ]
             
@@ -138,24 +138,35 @@ def interactive_session():
                 action = "exit_session"
                 show_regular_menu = False
             elif copilot_action == 'do_it':
+                # Gunakan info dari saran AI untuk menentukan aksi dan tujuan
+                action = contextual_suggestion.get('scrape_action', 'scrape') # scrape_list atau scrape_detail
                 goal = contextual_suggestion.get('suggestion_text', 'Data dari halaman ' + page_data['title'])
-                action = 'scrape'
                 show_regular_menu = False
             elif copilot_action == 'go_to_start':
                 action = 'go_to_start'
                 show_regular_menu = False
-            # Jika 'ignore', show_regular_menu tetap True
+            # Jika 'ignore', show_regular_menu tetap True dan akan jatuh ke blok menu reguler
 
+        # Tampilkan menu reguler jika tidak ada saran Co-pilot atau jika saran diabaikan
         if show_regular_menu:
             choices = []
             if search_results:
                 last_search_url = current_url
                 choices.append(questionary.Separator("--- Hasil Pencarian ---"))
-                # ... (logika paginasi tidak berubah) ...
-                for item in search_results: choices.append(questionary.Choice(f"📖 {item['title']:.60}", {"action": "navigate", "details": {"url": item['url']}}))
+                start_index, end_index = (page_num - 1) * results_per_page, page_num * results_per_page
+                total_pages = math.ceil(len(search_results) / results_per_page)
+                for item in search_results[start_index:end_index]:
+                    choices.append(questionary.Choice(f"📖 {item['title']:.60}", {"action": "navigate", "details": {"url": item['url']}}))
+                if total_pages > 1:
+                    pagination_choices = []
+                    if page_num > 1: pagination_choices.append(questionary.Choice("⬅️ Sebelumnya", {"action": "prev_page"}))
+                    if end_index < len(search_results): pagination_choices.append(questionary.Choice("➡️ Berikutnya", {"action": "next_page"}))
+                    if pagination_choices:
+                        choices.append(questionary.Separator(f"Halaman {page_num}/{total_pages}"))
+                        choices.extend(pagination_choices)
             elif goal and not search_results:
                 choices.append(questionary.Separator("--- Aksi Halaman Detail ---"))
-                choices.append(questionary.Choice("📄 Scrape Detail Komik Ini", {"action": "scrape"}))
+                choices.append(questionary.Choice("📄 Scrape Detail Komik Ini", {"action": "scrape_detail"}))
                 if last_search_url: choices.append(questionary.Choice("🔙 Kembali ke Hasil Pencarian", {"action": "go_back_to_search"}))
             
             if not (goal and not search_results): 
@@ -181,16 +192,15 @@ def interactive_session():
             else:
                 action = user_choice.get('action')
 
+        # --- Bagian Eksekusi Aksi ---
         if action == 'exit_session':
             console.print("[bold cyan]✓ Sesi selesai. Kembali ke menu utama...[/bold cyan]")
             time.sleep(1)
             break 
         
-        # --- PERBAIKAN: Mengatur mode AI berdasarkan aksi pengguna ---
-        if action == 'search' or action == 'navigate': 
-            is_exploration_mode = False
-        elif action in ['navigate_explore', 'go_to_start', 'go_back_to_search']: 
-            is_exploration_mode = True
+        # Mengatur mode AI berdasarkan aksi pengguna
+        if action in ['search', 'navigate']: is_exploration_mode = False
+        elif action in ['navigate_explore', 'go_to_start', 'go_back_to_search']: is_exploration_mode = True
 
         if action == 'go_to_start':
             current_url, goal, last_search_url, page_num = start_url, None, None, 1
@@ -203,15 +213,25 @@ def interactive_session():
         elif action in ['navigate', 'navigate_explore']: current_url = user_choice['details']['url']
         elif action == 'next_page': page_num += 1
         elif action == 'prev_page': page_num -= 1
-        elif action == 'scrape':
+        elif action in ['scrape_detail', 'scrape_list']:
             if not goal: goal = questionary.text("🎯 Apa tujuan scraping Anda?").ask()
             if not goal: continue
-            scraped_data = call_api("/api/scrape", {"html_content": page_data['html'], "goal": goal})
+            
+            # Memilih endpoint yang tepat berdasarkan aksi
+            endpoint = "/api/scrape" if action == 'scrape_detail' else "/api/scrape_list"
+            scraped_data = call_api(endpoint, {"html_content": page_data['html'], "goal": goal})
+            
             if scraped_data:
-                next_action_url = post_scrape_session(scraped_data, current_url, last_search_url, start_url)
-                if next_action_url == "exit_session": break
-                current_url = next_action_url
-        
+                # Logika setelah scrape detail vs scrape list bisa dibedakan di sini jika perlu
+                if action == 'scrape_detail':
+                    next_action_url = post_scrape_session(scraped_data, current_url, last_search_url, start_url)
+                    if next_action_url == "exit_session": break
+                    current_url = next_action_url
+                else: # Untuk scrape_list
+                    console.print(Panel("[bold green]✅ Ekstraksi Daftar Selesai![/bold green]", border_style="green"))
+                    console.print(Syntax(json.dumps(scraped_data, indent=2, ensure_ascii=False), "json", theme="monokai"))
+                    input("\nTekan Enter untuk melanjutkan...")
+
         if current_url: continue
         else: break
 
