@@ -1,10 +1,11 @@
-# main.py (v11.1 - Perbaikan Tipe Data)
+# main.py (v11.2 - Pencarian Presisi)
 import os
 import json
 import sys
 from urllib.parse import urljoin, urlparse, urlencode
 import math
 import time
+import re # --- PERUBAHAN: Import modul regular expression ---
 
 import requests
 import questionary
@@ -27,9 +28,10 @@ if not API_URLS:
 # --- Komponen Tampilan & Logika API ---
 def print_header():
     ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
-    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v11.1 - Perbaikan Tipe Data"))
+    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v11.2 - Pencarian Presisi"))
 
 def call_api(endpoint, payload):
+    # ... (Fungsi ini tidak berubah)
     for i, base_url in enumerate(API_URLS):
         server_name = "utama" if i == 0 else f"cadangan {i}"
         if not base_url.endswith('/'): base_url += '/'
@@ -73,7 +75,7 @@ def chapter_session(chapter_url, detail_url, last_search_url):
 
 # --- ALUR KERJA: Setelah Scrape Detail ---
 def post_scrape_session(scraped_data, detail_url, last_search_url):
-    # ... (Fungsi ini tidak berubah)
+    # ... (Fungsi ini TIDAK berubah, kecuali logika pencarian chapter)
     while True:
         console.print(Panel("[bold green]✅ Scraping Detail Selesai![/bold green]", border_style="green"))
         console.print(Syntax(json.dumps(scraped_data, indent=2, ensure_ascii=False), "json", theme="monokai"))
@@ -88,7 +90,17 @@ def post_scrape_session(scraped_data, detail_url, last_search_url):
             chapter_list = scraped_data.get("chapters", [])
             if not chapter_list: continue
             chapter_num_str = questionary.text(f"Masukkan nomor chapter (tersedia {len(chapter_list)} chapter):").ask()
-            target_chapter = next((ch for ch in chapter_list if chapter_num_str in "".join(filter(str.isdigit, ch.get("chapter_title", "")))), None)
+            
+            # --- PERBAIKAN: Logika pencarian chapter yang lebih presisi ---
+            target_chapter = None
+            for chapter in chapter_list:
+                # Menemukan semua angka di dalam judul chapter
+                numbers_in_title = re.findall(r'\d+', chapter.get("chapter_title", ""))
+                # Memeriksa apakah nomor yang diketik ada di dalam daftar angka yang ditemukan
+                if chapter_num_str in numbers_in_title:
+                    target_chapter = chapter
+                    break # Langsung berhenti setelah menemukan chapter yang cocok pertama
+            
             if target_chapter:
                 next_url = chapter_session(target_chapter['url'], detail_url, last_search_url)
                 if next_url == "exit_session": return "exit_session"
@@ -98,6 +110,7 @@ def post_scrape_session(scraped_data, detail_url, last_search_url):
 
 # --- Alur Kerja Utama (CLI) ---
 def interactive_session():
+    # ... (Fungsi ini tidak berubah)
     start_url = questionary.text("🔗 Masukkan URL awal:", validate=lambda t: t.startswith("http")).ask()
     if not start_url: return
 
@@ -117,7 +130,6 @@ def interactive_session():
         
         choices = []
         
-        # KONTEKS: Halaman hasil pencarian
         if search_results:
             last_search_url = current_url
             choices.append(questionary.Separator("--- Hasil Pencarian ---"))
@@ -128,26 +140,20 @@ def interactive_session():
                 choices.append(questionary.Choice(f"📖 {item['title']:.60}", value={"action": "navigate", "details": {"url": item['url']}}))
             if total_pages > 1:
                 pagination_choices = []
-                # --- PERBAIKAN TIPE DATA ---
                 if page_num > 1: pagination_choices.append(questionary.Choice(title="⬅️ Sebelumnya", value={"action": "prev_page"}))
                 if end_index < len(search_results): pagination_choices.append(questionary.Choice(title="➡️ Berikutnya", value={"action": "next_page"}))
                 if pagination_choices:
                     choices.append(questionary.Separator(f"Halaman {page_num}/{total_pages}"))
                     choices.extend(pagination_choices)
 
-        # KONTEKS: Halaman detail
         elif goal and not search_results:
             choices.append(questionary.Separator("--- Aksi Halaman Detail ---"))
-            # --- PERBAIKAN TIPE DATA ---
             choices.append(questionary.Choice("📄 Scrape Detail Komik Ini", value={"action": "scrape"}))
             if last_search_url: choices.append(questionary.Choice("🔙 Kembali ke Hasil Pencarian", value={"action": "go_back_to_search"}))
         
-        # Opsi default
         if not (goal and not search_results): 
-            # --- PERBAIKAN TIPE DATA ---
             choices.insert(0, questionary.Choice("🔎 Cari Komik di Situs Ini", value={"action": "search"}))
         
-        # Menu navigasi utama
         if not search_results and not (goal and not search_results):
             link_choices = [el for el in other_elements if el.get('text')][:5]
             if link_choices:
@@ -156,12 +162,10 @@ def interactive_session():
                     choices.append(questionary.Choice(title=f"  -> {link['text']:.50}", value={"action": "navigate", "details": {"url": link['href']}}))
 
         choices.append(questionary.Separator())
-        # --- PERBAIKAN TIPE DATA ---
         choices.append(questionary.Choice("🏠 Kembali ke Menu Utama", value={"action": "exit"}))
 
         user_choice = questionary.select("Pilih aksi selanjutnya:", choices=choices).ask()
         
-        # Pemeriksaan yang lebih aman
         if not user_choice or user_choice.get('action') == 'exit': break
 
         action = user_choice.get('action')
@@ -181,16 +185,16 @@ def interactive_session():
                 if next_action_url == "exit_session": break
                 current_url = next_action_url
         
-        # Loop control yang disederhanakan
-        if current_url:
-             continue
+        if not isinstance(user_choice, dict) or action in ['next_page', 'prev_page', 'search', 'go_back_to_search']:
+            continue
+        elif current_url: 
+            continue
         else:
              break
 
 def main():
     while True:
         print_header()
-        # Menggunakan questionary.Choice untuk konsistensi, meskipun tidak wajib di sini
         choice = questionary.select(
             "Pilih menu utama:",
             choices=[
@@ -198,7 +202,6 @@ def main():
                 questionary.Choice("退出 Keluar", value="exit"),
             ]
         ).ask()
-
         if choice == "start": 
             interactive_session()
         else: 
