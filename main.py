@@ -1,4 +1,4 @@
-# main.py (v10.7 - Alur Kerja Cerdas)
+# main.py (v10.8 - Perbaikan Alur Utama)
 import os
 import json
 import sys
@@ -39,7 +39,7 @@ if not API_URLS:
 
 def print_header():
     ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
-    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="[white]Universal AI Comic Scraper[/white]", subtitle="[green]v10.7 - Alur Kerja Cerdas[/green]", border_style="blue"))
+    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="[white]Universal AI Comic Scraper[/white]", subtitle="[green]v10.8 - Perbaikan Alur Utama[/green]", border_style="blue"))
 
 # --- Logika Interaksi Backend & AI ---
 
@@ -58,7 +58,8 @@ def call_api(endpoint, payload):
                 res_json = response.json()
                 if res_json.get("status") == "error": return None
                 return res_json.get("data")
-            except requests.exceptions.RequestException:
+            except requests.exceptions.RequestException as e:
+                console.print(f"[bold red]❌ Gagal terhubung ke server {server_name}: {e}[/bold red]")
                 if i < len(API_URLS) - 1: continue
                 else: return None
     return None
@@ -82,6 +83,8 @@ def interactive_session():
 
         current_url = page_data['current_url']
         search_results = page_data.get('search_results', [])
+        # --- PERBAIKAN: Mengambil other_elements yang tadinya hilang ---
+        other_elements = page_data.get('other_elements', [])
         
         console.print(Panel(f"[bold]Lokasi:[/bold] [cyan]{current_url}[/cyan]\n[bold]Judul Halaman:[/bold] [yellow]{page_data['title']}[/yellow]", title="[bold blue]Dashboard Sesi[/bold blue]"))
 
@@ -90,7 +93,7 @@ def interactive_session():
 
         choices = []
         
-        # --- PERUBAHAN: Tampilan menu cerdas berdasarkan konteks ---
+        # --- Tampilan menu cerdas berdasarkan konteks ---
         
         # KONTEKS 1: Jika ada hasil pencarian, tampilkan hasilnya
         if search_results:
@@ -121,6 +124,15 @@ def interactive_session():
         # Opsi cari komik selalu ada di atas (kecuali di halaman detail)
         if not (goal and not search_results):
              choices.insert(0, questionary.Choice(title="🔎 Cari Komik di Situs Ini", value={"action": "search"}))
+
+        # --- PERBAIKAN: Mengembalikan menu navigasi utama ---
+        # Tampilkan link navigasi JIKA bukan halaman detail
+        if not (goal and not search_results):
+            link_choices = [el for el in other_elements if el['tag'] == 'a' and el.get('text')][:5]
+            if link_choices:
+                choices.append(questionary.Separator("--- Navigasi ---"))
+                for link in link_choices:
+                    choices.append(questionary.Choice(title=f"  -> {link['text']:.50}", value={"action": "navigate", "details": {"url": link['href']}}))
 
         # Menu keluar
         choices.append(questionary.Separator())
