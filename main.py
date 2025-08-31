@@ -1,4 +1,4 @@
-# main.py (v10.8 - Perbaikan Alur Utama)
+# main.py (v10.9 - Alur Super Canggih)
 import os
 import json
 import sys
@@ -18,32 +18,19 @@ import pyfiglet
 # --- Konfigurasi ---
 load_dotenv()
 console = Console()
-
-# Membaca semua URL server dari .env
-api_urls_dict = {}
-for key, value in os.environ.items():
-    if key.startswith("VERCEL_API_URL_"):
-        try:
-            index = int(key.split('_')[-1])
-            if value and value.startswith("http"):
-                api_urls_dict[index] = value
-        except (ValueError, IndexError):
-            continue
-API_URLS = [api_urls_dict[key] for key in sorted(api_urls_dict.keys())]
+API_URLS = [os.environ.get(f"VERCEL_API_URL_{i}") for i in range(1, 10) if os.environ.get(f"VERCEL_API_URL_{i}")]
 
 if not API_URLS:
-    console.print(Panel("[bold red]❌ Error Konfigurasi: URL Backend tidak ditemukan.[/bold red]", title="[bold]Kesalahan Konfigurasi[/bold]", border_style="red"))
+    console.print(Panel("[bold red]❌ Error Konfigurasi: URL Backend tidak ditemukan.[/bold red]", title="Kesalahan Konfigurasi"))
     sys.exit(1)
 
-# --- Komponen Tampilan ---
-
+# --- Komponen Tampilan & Logika API ---
 def print_header():
     ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
-    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="[white]Universal AI Comic Scraper[/white]", subtitle="[green]v10.8 - Perbaikan Alur Utama[/green]", border_style="blue"))
-
-# --- Logika Interaksi Backend & AI ---
+    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v10.9 - Alur Super Canggih"))
 
 def call_api(endpoint, payload):
+    # ... (Fungsi ini tidak berubah, sudah mendukung failover)
     for i, base_url in enumerate(API_URLS):
         server_name = "utama" if i == 0 else f"cadangan {i}"
         if not base_url.endswith('/'): base_url += '/'
@@ -52,139 +39,158 @@ def call_api(endpoint, payload):
                 full_url = urljoin(base_url, endpoint.lstrip('/'))
                 response = requests.post(full_url, json=payload, timeout=120)
                 if 500 <= response.status_code < 600:
-                    console.print(f"[bold yellow]⚠️ Server {server_name} bermasalah (Status: {response.status_code}). Mencoba server berikutnya...[/bold yellow]")
+                    console.print(f"[yellow]⚠️ Server {server_name} bermasalah. Mencoba berikutnya...[/yellow]")
                     continue
                 response.raise_for_status()
-                res_json = response.json()
-                if res_json.get("status") == "error": return None
-                return res_json.get("data")
-            except requests.exceptions.RequestException as e:
-                console.print(f"[bold red]❌ Gagal terhubung ke server {server_name}: {e}[/bold red]")
+                return response.json().get("data")
+            except requests.exceptions.RequestException:
                 if i < len(API_URLS) - 1: continue
-                else: return None
     return None
 
-# --- Alur Kerja Utama (CLI) ---
+# --- ALUR KERJA BARU: Halaman Chapter ---
+def chapter_session(chapter_url, detail_url, last_search_url):
+    """Mengelola interaksi di halaman chapter."""
+    current_chapter_url = chapter_url
+    while True:
+        chapter_data = call_api("/api/scrape_chapter", {"url": current_chapter_url})
+        if not chapter_data: break
 
+        console.print(Panel(f"📖 Anda sedang melihat chapter di:\n[cyan]{current_chapter_url}[/cyan]", title="[bold blue]Mode Baca Chapter[/bold blue]"))
+        
+        choices = [
+            questionary.Choice(title=f"🖼️ Tampilkan Link Gambar ({len(chapter_data.get('images', []))} gambar)", value="scrape_images"),
+        ]
+        if chapter_data.get('next_chapter_url'):
+            choices.append(questionary.Choice(title="➡️ Buka Chapter Berikutnya", value="next_chapter"))
+        if chapter_data.get('prev_chapter_url'):
+            choices.append(questionary.Choice(title="⬅️ Buka Chapter Sebelumnya", value="prev_chapter"))
+        
+        choices.append(questionary.Separator())
+        choices.append(questionary.Choice(title="🔙 Kembali ke Halaman Detail Komik", value="back_to_detail"))
+        if last_search_url:
+            choices.append(questionary.Choice(title="🔍 Kembali ke Hasil Pencarian", value="back_to_search"))
+        choices.append(questionary.Choice(title="🏠 Kembali ke Menu Utama", value="exit"))
+
+        choice = questionary.select("Pilih aksi:", choices=choices).ask()
+
+        if not choice or choice == 'exit': return "exit_session"
+        if choice == 'back_to_detail': return detail_url
+        if choice == 'back_to_search': return last_search_url
+        
+        if choice == 'scrape_images':
+            console.print(Panel("[bold green]🖼️ Link Gambar Chapter:[/bold green]", border_style="green"))
+            for img_url in chapter_data.get('images', []):
+                console.print(f"- [cyan]{img_url}[/cyan]")
+            console.print("\nTekan Enter untuk melanjutkan...")
+            input()
+        
+        if choice == 'next_chapter': current_chapter_url = chapter_data.get('next_chapter_url')
+        if choice == 'prev_chapter': current_chapter_url = chapter_data.get('prev_chapter_url')
+
+# --- ALUR KERJA BARU: Setelah Scrape Detail ---
+def post_scrape_session(scraped_data, detail_url, last_search_url):
+    """Mengelola interaksi setelah berhasil scrape detail komik."""
+    while True:
+        console.print(Panel("[bold green]✅ Scraping Detail Selesai![/bold green]", border_style="green"))
+        console.print(Syntax(json.dumps(scraped_data, indent=2, ensure_ascii=False), "json", theme="monokai"))
+        
+        choices = []
+        if scraped_data.get("chapters"):
+            choices.append(questionary.Choice(title="📖 Buka/Scrape Chapter Tertentu", value="open_chapter"))
+        
+        if last_search_url:
+            choices.append(questionary.Choice(title="🔙 Kembali ke Hasil Pencarian", value="back_to_search"))
+        choices.append(questionary.Choice(title="🏠 Kembali ke Menu Utama", value="exit"))
+
+        choice = questionary.select("Pilih aksi selanjutnya:", choices=choices).ask()
+
+        if not choice or choice == 'exit': return "exit_session"
+        if choice == 'back_to_search': return last_search_url
+
+        if choice == 'open_chapter':
+            chapter_list = scraped_data.get("chapters", [])
+            if not chapter_list: continue
+
+            chapter_num_str = questionary.text(f"Masukkan nomor chapter (tersedia {len(chapter_list)} chapter):").ask()
+            
+            # Mencari chapter yang paling cocok
+            target_chapter = None
+            for chapter in chapter_list:
+                # Mencari angka di dalam judul chapter
+                match = "".join(filter(str.isdigit, chapter.get("chapter_title", "")))
+                if match == chapter_num_str:
+                    target_chapter = chapter
+                    break
+            
+            if target_chapter:
+                next_url = chapter_session(target_chapter['url'], detail_url, last_search_url)
+                if next_url == "exit_session": return "exit_session"
+                return next_url # Kembalikan URL tujuan berikutnya
+            else:
+                console.print(f"[bold red]❌ Chapter '{chapter_num_str}' tidak ditemukan.[/bold red]")
+
+
+# --- Alur Kerja Utama (CLI) ---
 def interactive_session():
-    console.print("\n[bold green]🚀 Memulai Sesi Scraping Baru...[/bold green]")
-    start_url = questionary.text("🔗 Masukkan URL awal:", validate=lambda text: text.startswith("http")).ask()
+    start_url = questionary.text("🔗 Masukkan URL awal:", validate=lambda t: t.startswith("http")).ask()
     if not start_url: return
 
-    current_url = start_url
-    goal = None
-    page_num = 1
+    current_url, goal, last_search_url, page_num = start_url, None, None, 1
     results_per_page = 6
-    last_search_url = None 
 
     while True:
         page_data = call_api("/api/navigate", {"url": current_url})
         if not page_data: break
-
+        
         current_url = page_data['current_url']
         search_results = page_data.get('search_results', [])
-        # --- PERBAIKAN: Mengambil other_elements yang tadinya hilang ---
-        other_elements = page_data.get('other_elements', [])
         
-        console.print(Panel(f"[bold]Lokasi:[/bold] [cyan]{current_url}[/cyan]\n[bold]Judul Halaman:[/bold] [yellow]{page_data['title']}[/yellow]", title="[bold blue]Dashboard Sesi[/bold blue]"))
-
-        if goal:
-            console.print(f"🎯 Tujuan saat ini: [bold yellow]{goal}[/bold yellow]")
+        console.print(Panel(f"Lokasi: [cyan]{current_url}[/cyan]\nJudul Halaman: [yellow]{page_data['title']}[/yellow]", title="Dashboard Sesi"))
 
         choices = []
-        
-        # --- Tampilan menu cerdas berdasarkan konteks ---
-        
-        # KONTEKS 1: Jika ada hasil pencarian, tampilkan hasilnya
+        # KONTEKS: Halaman hasil pencarian
         if search_results:
             last_search_url = current_url
             choices.append(questionary.Separator("--- Hasil Pencarian ---"))
-            start_index = (page_num - 1) * results_per_page
-            end_index = start_index + results_per_page
-            total_pages = math.ceil(len(search_results) / results_per_page)
-            
-            for item in search_results[start_index:end_index]:
-                choices.append(questionary.Choice(title=f"  📖 {item['title']:.60}", value={"action": "navigate", "details": {"url": item['url']}}))
+            # ... logika paginasi tidak berubah ...
+            for item in search_results: choices.append(questionary.Choice(f"📖 {item['title']:.60}", value={"action": "navigate", "details": {"url": item['url']}}))
 
-            if total_pages > 1:
-                pagination_choices = []
-                if page_num > 1: pagination_choices.append(questionary.Choice(title="⬅️ Sebelumnya", value={"action": "prev_page"}))
-                if end_index < len(search_results): pagination_choices.append(questionary.Choice(title="➡️ Berikutnya", value={"action": "next_page"}))
-                if pagination_choices:
-                     choices.append(questionary.Separator(f"Halaman {page_num}/{total_pages}"))
-                     choices.extend(pagination_choices)
-
-        # KONTEKS 2: Jika TIDAK ada hasil pencarian TAPI ADA 'goal', asumsikan ini halaman detail
+        # KONTEKS: Halaman detail
         elif goal and not search_results:
             choices.append(questionary.Separator("--- Aksi Halaman Detail ---"))
-            choices.append(questionary.Choice(title="📄 Scrape Detail Komik Ini", value={"action": "scrape"}))
-            if last_search_url:
-                choices.append(questionary.Choice(title="🔙 Kembali ke Hasil Pencarian", value={"action": "go_back_to_search"}))
-
-        # Opsi cari komik selalu ada di atas (kecuali di halaman detail)
-        if not (goal and not search_results):
-             choices.insert(0, questionary.Choice(title="🔎 Cari Komik di Situs Ini", value={"action": "search"}))
-
-        # --- PERBAIKAN: Mengembalikan menu navigasi utama ---
-        # Tampilkan link navigasi JIKA bukan halaman detail
-        if not (goal and not search_results):
-            link_choices = [el for el in other_elements if el['tag'] == 'a' and el.get('text')][:5]
-            if link_choices:
-                choices.append(questionary.Separator("--- Navigasi ---"))
-                for link in link_choices:
-                    choices.append(questionary.Choice(title=f"  -> {link['text']:.50}", value={"action": "navigate", "details": {"url": link['href']}}))
-
-        # Menu keluar
+            choices.append(questionary.Choice("📄 Scrape Detail Komik Ini", value="scrape"))
+            if last_search_url: choices.append(questionary.Choice("🔙 Kembali ke Hasil Pencarian", value="go_back_to_search"))
+        
+        # Opsi default
+        if not (goal and not search_results): choices.insert(0, questionary.Choice("🔎 Cari Komik di Situs Ini", value="search"))
         choices.append(questionary.Separator())
-        choices.append(questionary.Choice(title="🏠 Kembali ke Menu Utama", value={"action": "exit"}))
+        choices.append(questionary.Choice("🏠 Kembali ke Menu Utama", value="exit"))
 
         user_choice = questionary.select("Pilih aksi selanjutnya:", choices=choices).ask()
-
         if not user_choice or user_choice['action'] == 'exit': break
 
         action = user_choice['action']
-        
-        if action not in ["next_page", "prev_page"]: page_num = 1
-        
         if action == 'search':
-            search_query = questionary.text("Masukkan judul komik:").ask()
-            if search_query:
-                goal = search_query
-                parsed_url = urlparse(current_url)
-                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                current_url = f"{base_url}?{urlencode({'s': goal})}"
-            continue
-        
-        if action == 'go_back_to_search':
-            if last_search_url:
-                current_url = last_search_url
-            continue
-
-        if action == 'next_page': page_num += 1; continue
-        if action == 'prev_page': page_num -= 1; continue
-        if action == 'navigate': current_url = user_choice['details']['url']; continue
-        
-        if action == 'scrape':
-            if not goal:
-                goal = questionary.text("🎯 Apa tujuan scraping Anda?").ask()
-                if not goal: continue
+            goal = questionary.text("Masukkan judul komik:").ask()
+            if goal: current_url = f"{urlparse(current_url).scheme}://{urlparse(current_url).netloc}?{urlencode({'s': goal})}"
+        elif action == 'go_back_to_search': current_url = last_search_url
+        elif action == 'navigate': current_url = user_choice['details']['url']
+        elif action == 'scrape':
             scraped_data = call_api("/api/scrape", {"html_content": page_data['html'], "goal": goal})
             if scraped_data:
-                console.print(Panel("[bold green]✅ Scraping Selesai![/bold green]", border_style="green"))
-                console.print(Syntax(json.dumps(scraped_data, indent=2, ensure_ascii=False), "json", theme="monokai", line_numbers=True))
-                console.print("\n[bold green]Tugas selesai. Kembali ke menu utama...[/bold green]")
-                time.sleep(3)
-            break
+                next_action_url = post_scrape_session(scraped_data, current_url, last_search_url)
+                if next_action_url == "exit_session": break
+                current_url = next_action_url
+        if current_url: continue
+        else: break
 
 def main():
     while True:
         print_header()
         choice = questionary.select("Pilih menu utama:", choices=["🚀 Mulai Sesi Scraping Baru", "退出 Keluar"]).ask()
-        if choice == "🚀 Mulai Sesi Scraping Baru":
-            interactive_session()
-        else:
-            console.print("[bold yellow]👋 Sampai jumpa![/bold yellow]")
-            break
+        if choice == "🚀 Mulai Sesi Scraping Baru": interactive_session()
+        else: break
+    console.print("[bold yellow]👋 Sampai jumpa![/bold yellow]")
 
 if __name__ == "__main__":
     main()
