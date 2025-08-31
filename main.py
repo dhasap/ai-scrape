@@ -1,4 +1,4 @@
-# main.py (v11.0 - Perbaikan Alur Utama)
+# main.py (v11.1 - Perbaikan Tipe Data)
 import os
 import json
 import sys
@@ -27,7 +27,7 @@ if not API_URLS:
 # --- Komponen Tampilan & Logika API ---
 def print_header():
     ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
-    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v11.0 - Perbaikan Alur Utama"))
+    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v11.1 - Perbaikan Tipe Data"))
 
 def call_api(endpoint, payload):
     for i, base_url in enumerate(API_URLS):
@@ -48,6 +48,7 @@ def call_api(endpoint, payload):
 
 # --- ALUR KERJA: Halaman Chapter ---
 def chapter_session(chapter_url, detail_url, last_search_url):
+    # ... (Fungsi ini tidak berubah)
     current_chapter_url = chapter_url
     while True:
         chapter_data = call_api("/api/scrape_chapter", {"url": current_chapter_url})
@@ -72,6 +73,7 @@ def chapter_session(chapter_url, detail_url, last_search_url):
 
 # --- ALUR KERJA: Setelah Scrape Detail ---
 def post_scrape_session(scraped_data, detail_url, last_search_url):
+    # ... (Fungsi ini tidak berubah)
     while True:
         console.print(Panel("[bold green]✅ Scraping Detail Selesai![/bold green]", border_style="green"))
         console.print(Syntax(json.dumps(scraped_data, indent=2, ensure_ascii=False), "json", theme="monokai"))
@@ -108,7 +110,6 @@ def interactive_session():
         
         current_url = page_data['current_url']
         search_results = page_data.get('search_results', [])
-        # --- PERBAIKAN: Mengambil other_elements yang tadinya hilang ---
         other_elements = page_data.get('other_elements', [])
         
         console.print(Panel(f"Lokasi: [cyan]{current_url}[/cyan]\nJudul Halaman: [yellow]{page_data['title']}[/yellow]", title="Dashboard Sesi"))
@@ -127,6 +128,7 @@ def interactive_session():
                 choices.append(questionary.Choice(f"📖 {item['title']:.60}", value={"action": "navigate", "details": {"url": item['url']}}))
             if total_pages > 1:
                 pagination_choices = []
+                # --- PERBAIKAN TIPE DATA ---
                 if page_num > 1: pagination_choices.append(questionary.Choice(title="⬅️ Sebelumnya", value={"action": "prev_page"}))
                 if end_index < len(search_results): pagination_choices.append(questionary.Choice(title="➡️ Berikutnya", value={"action": "next_page"}))
                 if pagination_choices:
@@ -136,15 +138,16 @@ def interactive_session():
         # KONTEKS: Halaman detail
         elif goal and not search_results:
             choices.append(questionary.Separator("--- Aksi Halaman Detail ---"))
-            choices.append(questionary.Choice("📄 Scrape Detail Komik Ini", value="scrape"))
-            if last_search_url: choices.append(questionary.Choice("🔙 Kembali ke Hasil Pencarian", value="go_back_to_search"))
+            # --- PERBAIKAN TIPE DATA ---
+            choices.append(questionary.Choice("📄 Scrape Detail Komik Ini", value={"action": "scrape"}))
+            if last_search_url: choices.append(questionary.Choice("🔙 Kembali ke Hasil Pencarian", value={"action": "go_back_to_search"}))
         
         # Opsi default
         if not (goal and not search_results): 
-            choices.insert(0, questionary.Choice("🔎 Cari Komik di Situs Ini", value="search"))
+            # --- PERBAIKAN TIPE DATA ---
+            choices.insert(0, questionary.Choice("🔎 Cari Komik di Situs Ini", value={"action": "search"}))
         
-        # --- PERBAIKAN: Mengembalikan menu navigasi utama ---
-        # Tampilkan navigasi umum JIKA BUKAN halaman detail DAN BUKAN halaman hasil pencarian
+        # Menu navigasi utama
         if not search_results and not (goal and not search_results):
             link_choices = [el for el in other_elements if el.get('text')][:5]
             if link_choices:
@@ -153,12 +156,15 @@ def interactive_session():
                     choices.append(questionary.Choice(title=f"  -> {link['text']:.50}", value={"action": "navigate", "details": {"url": link['href']}}))
 
         choices.append(questionary.Separator())
-        choices.append(questionary.Choice("🏠 Kembali ke Menu Utama", value="exit"))
+        # --- PERBAIKAN TIPE DATA ---
+        choices.append(questionary.Choice("🏠 Kembali ke Menu Utama", value={"action": "exit"}))
 
         user_choice = questionary.select("Pilih aksi selanjutnya:", choices=choices).ask()
-        if not user_choice or user_choice['action'] == 'exit': break
+        
+        # Pemeriksaan yang lebih aman
+        if not user_choice or user_choice.get('action') == 'exit': break
 
-        action = user_choice['action']
+        action = user_choice.get('action')
         if action not in ["next_page", "prev_page"]: page_num = 1
         
         if action == 'search':
@@ -174,18 +180,29 @@ def interactive_session():
                 next_action_url = post_scrape_session(scraped_data, current_url, last_search_url)
                 if next_action_url == "exit_session": break
                 current_url = next_action_url
-        if not isinstance(user_choice, dict) or action in ['next_page', 'prev_page', 'search', 'go_back_to_search']:
-            continue
-        elif current_url: 
-            continue
-        else: break
+        
+        # Loop control yang disederhanakan
+        if current_url:
+             continue
+        else:
+             break
 
 def main():
     while True:
         print_header()
-        choice = questionary.select("Pilih menu utama:", choices=["🚀 Mulai Sesi Scraping Baru", "退出 Keluar"]).ask()
-        if choice == "🚀 Mulai Sesi Scraping Baru": interactive_session()
-        else: break
+        # Menggunakan questionary.Choice untuk konsistensi, meskipun tidak wajib di sini
+        choice = questionary.select(
+            "Pilih menu utama:",
+            choices=[
+                questionary.Choice("🚀 Mulai Sesi Scraping Baru", value="start"),
+                questionary.Choice("退出 Keluar", value="exit"),
+            ]
+        ).ask()
+
+        if choice == "start": 
+            interactive_session()
+        else: 
+            break
     console.print("[bold yellow]👋 Sampai jumpa![/bold yellow]")
 
 if __name__ == "__main__":
