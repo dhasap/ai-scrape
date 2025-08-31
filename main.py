@@ -1,4 +1,4 @@
-# main.py (v11.8 - Perbaikan Menu Utama)
+# main.py (v11.6 - Alur Keluar Cerdas)
 import os
 import json
 import sys
@@ -28,7 +28,7 @@ if not API_URLS:
 # --- Komponen Tampilan & Logika API ---
 def print_header():
     ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
-    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v11.8 - Perbaikan Menu Utama"))
+    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v11.6 - Alur Keluar Cerdas"))
 
 def call_api(endpoint, payload):
     for i, base_url in enumerate(API_URLS):
@@ -60,8 +60,9 @@ def chapter_session(chapter_url, detail_url, last_search_url, start_url):
         if chapter_data.get('prev_chapter_url'): choices.append(questionary.Choice("⬅️ Buka Chapter Sebelumnya", "prev_chapter"))
         choices.extend([questionary.Separator(), questionary.Choice("🔙 Kembali ke Halaman Detail Komik", "back_to_detail")])
         if last_search_url: choices.append(questionary.Choice("🔍 Kembali ke Hasil Pencarian", "back_to_search"))
+        # --- PERUBAHAN: Tombol soft reset untuk menu dalam ---
         choices.append(questionary.Choice("🔄 Kembali ke Halaman Awal Sesi", "go_to_start"))
-        
+
         choice = questionary.select("Pilih aksi:", choices=choices).ask()
         if not choice: return "exit_session"
         if choice == 'back_to_detail': return detail_url
@@ -85,8 +86,9 @@ def post_scrape_session(scraped_data, detail_url, last_search_url, start_url):
         choices = []
         if scraped_data.get("chapters"): choices.append(questionary.Choice("📖 Buka/Scrape Chapter Tertentu", "open_chapter"))
         if last_search_url: choices.append(questionary.Choice("🔙 Kembali ke Hasil Pencarian", "back_to_search"))
+        # --- PERUBAHAN: Tombol soft reset untuk menu dalam ---
         choices.append(questionary.Choice("🔄 Kembali ke Halaman Awal Sesi", "go_to_start"))
-        
+
         choice = questionary.select("Pilih aksi selanjutnya:", choices=choices).ask()
         if not choice: return "exit_session"
         if choice == 'back_to_search': return last_search_url
@@ -99,6 +101,7 @@ def post_scrape_session(scraped_data, detail_url, last_search_url, start_url):
             
             target_chapter = next((ch for ch in chapter_list if chapter_num_str in re.findall(r'\d+', ch.get("chapter_title", ""))), None)
             if target_chapter:
+                # Teruskan start_url ke level yang lebih dalam lagi
                 next_url = chapter_session(target_chapter['url'], detail_url, last_search_url, start_url)
                 if next_url == "exit_session": return "exit_session"
                 return next_url
@@ -112,31 +115,23 @@ def interactive_session():
 
     current_url, goal, last_search_url, page_num = start_url, None, None, 1
     results_per_page = 6
-    is_exploration_mode = True 
 
     while True:
-        payload = {"url": current_url, "context": {"mode": "exploration" if is_exploration_mode else "navigation"}}
-        page_data = call_api("/api/navigate", payload)
+        page_data = call_api("/api/navigate", {"url": current_url})
         if not page_data: break
         
         current_url = page_data['current_url']
         search_results = page_data.get('search_results', [])
         other_elements = page_data.get('other_elements', [])
-        contextual_suggestion = page_data.get('contextual_suggestion')
         
         console.print(Panel(f"Lokasi: [cyan]{current_url}[/cyan]\nJudul Halaman: [yellow]{page_data['title']}[/yellow]", title="Dashboard Sesi"))
-        
-        if is_exploration_mode and contextual_suggestion:
-             console.print(f"[italic magenta]🤖 [Co-pilot] Saran: {contextual_suggestion.get('suggestion_text', 'N/A')}[/italic magenta]")
-
-        elif not is_exploration_mode and goal:
-            console.print(f"🎯 Tujuan saat ini: [bold yellow]{goal}[/bold yellow]")
-            navigation_suggestion = call_api("/api/suggest_action", {"goal": goal, "current_url": current_url, "elements": other_elements})
-            if navigation_suggestion: 
-                console.print(f"[italic magenta]🤖 [GPS] Saran: {navigation_suggestion.get('action', 'N/A')}[/italic magenta]")
+        if goal: console.print(f"🎯 Tujuan saat ini: [bold yellow]{goal}[/bold yellow]")
         
         choices = []
         
+        # --- PERUBAHAN: Menentukan konteks "dalam" atau "luar" ---
+        is_deep_level = bool(goal or search_results)
+
         if search_results:
             last_search_url = current_url
             choices.append(questionary.Separator("--- Hasil Pencarian ---"))
@@ -157,21 +152,16 @@ def interactive_session():
             choices.append(questionary.Choice("📄 Scrape Detail Komik Ini", {"action": "scrape"}))
             if last_search_url: choices.append(questionary.Choice("🔙 Kembali ke Hasil Pencarian", {"action": "go_back_to_search"}))
         
-        if contextual_suggestion:
-            choices.insert(0, questionary.Choice(f"✅ [AI] {contextual_suggestion.get('suggestion_text')}", value={"action": "contextual_scrape"}))
-        
-        if not (goal and not search_results): 
+        if not is_deep_level: 
             choices.insert(0, questionary.Choice("🔎 Cari Komik di Situs Ini", {"action": "search"}))
-        
-        if not search_results and not (goal and not search_results):
             link_choices = [el for el in other_elements if el.get('text')][:5]
             if link_choices:
                 choices.append(questionary.Separator("--- Navigasi ---"))
                 for link in link_choices:
-                    choices.append(questionary.Choice(f"  -> {link['text']:.50}", {"action": "navigate_explore", "details": {"url": link['href']}}))
+                    choices.append(questionary.Choice(f"  -> {link['text']:.50}", {"action": "navigate", "details": {"url": link['href']}}))
 
+        # --- PERUBAHAN: Menampilkan tombol kembali yang sesuai konteks ---
         choices.append(questionary.Separator())
-        is_deep_level = bool(goal or search_results)
         if is_deep_level:
             choices.append(questionary.Choice("🔄 Kembali ke Halaman Awal Sesi", {"action": "go_to_start"}))
         else:
@@ -186,28 +176,36 @@ def interactive_session():
 
         action = user_choice.get('action')
         
-        if action == 'search' or action == 'navigate': is_exploration_mode = False
-        elif action in ['navigate_explore', 'go_to_start', 'go_back_to_search']: is_exploration_mode = True
-
+        # Logika reset sesi
         if action == 'go_to_start':
             current_url, goal, last_search_url, page_num = start_url, None, None, 1
+            console.print("[bold cyan]🔄 Sesi direset ke halaman awal...[/bold cyan]")
+            time.sleep(1)
             continue
+        
+        if action not in ["next_page", "prev_page"]: page_num = 1
         
         if action == 'search':
             goal = questionary.text("Masukkan judul komik:").ask()
             if goal: current_url = f"{urlparse(current_url).scheme}://{urlparse(current_url).netloc}?{urlencode({'s': goal})}"
         elif action == 'go_back_to_search': current_url = last_search_url
-        elif action == 'navigate' or action == 'navigate_explore': current_url = user_choice['details']['url']
-        elif action in ['scrape', 'contextual_scrape']:
-            if action == 'contextual_scrape' and contextual_suggestion:
-                goal = contextual_suggestion.get('suggestion_text', 'Data dari halaman ' + page_data['title'])
-            if not goal: goal = questionary.text("🎯 Apa tujuan scraping Anda?").ask()
-            if not goal: continue
+        elif action == 'navigate': current_url = user_choice['details']['url']
+        elif action == 'next_page': page_num += 1
+        elif action == 'prev_page': page_num -= 1
+        elif action == 'scrape':
             scraped_data = call_api("/api/scrape", {"html_content": page_data['html'], "goal": goal})
             if scraped_data:
+                # Teruskan start_url ke level yang lebih dalam
                 next_action_url = post_scrape_session(scraped_data, current_url, last_search_url, start_url)
                 if next_action_url == "exit_session": break
-                current_url = next_action_url
+                
+                # Cek jika kita harus reset
+                if next_action_url == start_url:
+                    current_url, goal, last_search_url, page_num = start_url, None, None, 1
+                    console.print("[bold cyan]🔄 Sesi direset ke halaman awal...[/bold cyan]")
+                    time.sleep(1)
+                else:
+                    current_url = next_action_url
         
         if current_url: continue
         else: break
@@ -215,7 +213,6 @@ def interactive_session():
 def main():
     while True:
         print_header()
-        # --- PERBAIKAN: Menggunakan questionary.Choice untuk memisahkan label dan value ---
         choice = questionary.select(
             "Pilih menu utama:",
             choices=[
@@ -223,11 +220,9 @@ def main():
                 questionary.Choice("退出 Keluar", value="exit"),
             ]
         ).ask()
-
-        # Sekarang 'choice' akan berisi "start" atau "exit", bukan teks labelnya
         if choice == "start": 
             interactive_session()
-        else: # Mencakup "exit" dan jika pengguna menekan Ctrl+C (None)
+        else: 
             break
     console.print("[bold yellow]👋 Sampai jumpa![/bold yellow]")
 
