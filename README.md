@@ -161,7 +161,7 @@ Jika berhasil, akan muncul menu interaktif dengan tampilan modern.
 ## ⚙️ 4. Cara Menggunakan
 
 1. Buka CLI dengan `python main.py`
-2. Pilih menu sesuai konteks (misal: Cari Komik, Lihat Detail, Baca Chapter).
+2. Pilih menu sesuai konteks.
 3. Nikmati pengalaman scraping yang smooth.
 
 ---
