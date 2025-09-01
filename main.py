@@ -221,7 +221,7 @@ def interactive_session():
                     console.print(Syntax(json.dumps(scraped_data, indent=2, ensure_ascii=False), "json", theme="monokai"))
                     input("\nTekan Enter untuk melanjutkan...")
                     # --- PERBAIKAN FINAL: Mereset state setelah scrape daftar ---
-                    is_exploration_mode = False
+                    is_exploration_mode = True # Kembali ke mode jelajah
                     goal = None
 
         if current_url: continue
