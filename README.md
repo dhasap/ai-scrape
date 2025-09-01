@@ -80,7 +80,7 @@ cd api-scrape
 
   * Buka **Settings > General**
   * Scroll ke **Build & Development Settings**
-  * Pilih **Node.js 18.x**
+  * Pilih **Node.js 20.x**
   * Klik **Save**
 
 * **Atur Environment Variables**:
@@ -96,7 +96,7 @@ cd api-scrape
 
     ```
     Key: AWS_LAMBDA_JS_RUNTIME
-    Value: nodejs18.x
+    Value: nodejs20.x
     ```
 
 * Tunggu Vercel auto-redeploy sampai status **Ready** ✅
@@ -106,7 +106,7 @@ cd api-scrape
 * Copy URL project dari dashboard Vercel, contoh:
 
   ```
-  https://api-scrape-alpha.vercel.app
+  https://nama-domain.vercel.app
   ```
 * Ulangi langkah 2–4 untuk membuat server cadangan (backup).
 
