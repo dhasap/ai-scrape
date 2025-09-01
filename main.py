@@ -1,4 +1,4 @@
-# main.py (v12.2 - Smart Tools & Brain)
+# main.py (v12.3 - The Final Version)
 import os
 import json
 import sys
@@ -28,7 +28,7 @@ if not API_URLS:
 # --- Komponen Tampilan & Logika API ---
 def print_header():
     ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
-    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v12.2 - Smart Tools & Brain"))
+    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v12.3 - The Final Version"))
 
 def call_api(endpoint, payload):
     for i, base_url in enumerate(API_URLS):
@@ -209,7 +209,6 @@ def interactive_session():
             if not goal: goal = questionary.text("🎯 Apa tujuan scraping Anda?").ask()
             if not goal: continue
             
-            # --- PERBAIKAN: Memilih endpoint yang tepat berdasarkan aksi ---
             endpoint = "/api/scrape" if action == 'scrape_detail' else "/api/scrape_list"
             scraped_data = call_api(endpoint, {"html_content": page_data['html'], "goal": goal})
             
@@ -218,10 +217,12 @@ def interactive_session():
                     next_action_url = post_scrape_session(scraped_data, current_url, last_search_url, start_url)
                     if next_action_url == "exit_session": break
                     current_url = next_action_url
-                else: 
+                else: # Untuk scrape_list
                     console.print(Panel("[bold green]✅ Ekstraksi Daftar Selesai![/bold green]", border_style="green"))
                     console.print(Syntax(json.dumps(scraped_data, indent=2, ensure_ascii=False), "json", theme="monokai"))
                     input("\nTekan Enter untuk melanjutkan...")
+                    # --- PERBAIKAN: Mematikan Co-pilot sementara untuk mencegah loop ---
+                    is_exploration_mode = False
 
         if current_url: continue
         else: break
