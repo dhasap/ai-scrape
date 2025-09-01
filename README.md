@@ -1,83 +1,129 @@
-# 📖 Universal AI Comic Scraper v10.0 🚀
+# 📖 AI Scrape v12 - Agen Scraping Cerdas (Dokumentasi Lengkap) 🚀
 
 <div align="center">
-
-**Arsitektur Client-Server dengan Backend di Vercel & CLI Modern di Termux**
-
+  <strong>🚀 Sistem agen scraping semi-autonom dengan arsitektur client-server 🚀</strong><br>
+  <em>💡 Otak AI di Vercel + Remote Control di Termux 💡</em>
 </div>
 
 ---
 
-## ✨ Konsep Arsitektur Baru
+## ✨ 1. Konsep & Arsitektur
 
-Scraper ini telah dirombak total menjadi arsitektur client-server yang tangguh dan modern:
+**AI Scrape v12** bukan sekadar scraper biasa. Ini adalah **agen cerdas** dengan arsitektur client-server modern untuk mencapai **stabilitas, kekuatan, dan kecerdasan maksimal**.
 
-*   **Backend API (di Vercel)**: Sebuah "mesin" scraping yang dibuat dengan **FastAPI** dan **Playwright**. Semua pekerjaan berat seperti menjalankan browser, mengeksekusi JavaScript, dan parsing HTML dilakukan di cloud. Ini membuat prosesnya cepat dan tidak membebani perangkat lokal.
+### 🔹 Backend API ("Otak" di Vercel)
 
-*   **Frontend CLI (di Termux/PC)**: Sebuah "kokpit" atau antarmuka pengguna yang dibuat dengan **Rich** dan **Questionary**. Tugasnya hanya menerima perintah dari pengguna dan berkomunikasi dengan backend. Tampilannya interaktif, modern, dan ramah pengguna.
+* ⚡ Dibangun dengan **Node.js (Express) + Playwright**
+* 🧠 Menjalankan browser headless, analisa HTML kompleks, komunikasi dengan **Google Gemini AI**
+* ☁️ Semua kerja berat dilakukan di cloud, jadi perangkat lokal tetap ringan
 
-## 🚀 Alur Instalasi & Setup
+### 🔹 Frontend CLI ("Remote Control" di Termux/PC)
 
-Proses setup sekarang dibagi menjadi dua bagian: Backend dan CLI.
+* 🐍 Dibangun dengan **Python (rich & questionary)**
+* 🎮 Jadi kokpit interaktif buat user sebagai **pilot**
+* 🔄 Mengirim perintah ke Otak AI, terima hasil JSON, tampilkan dengan UI modern
 
-### **Bagian 1: Setup Backend di Vercel**
-
-1.  **Clone Repository**
-    ```bash
-    git clone https://github.com/dhasap/ai-scrape.git
-    cd ai-scrape
-    ```
-
-2.  **Deploy ke Vercel**
-    *   Install Vercel CLI di PC Anda: `npm install -g vercel`
-    *   Login ke Vercel: `vercel login`
-    *   Dari dalam direktori `ai-scrape`, jalankan perintah `vercel` dan ikuti petunjuknya untuk mendeploy proyek baru.
-
-3.  **Konfigurasi Proyek di Vercel**
-    Setelah deploy, buka dashboard proyek Anda di situs Vercel:
-
-    *   **Atur Build Command**:
-        *   Buka `Settings > General`.
-        *   Di bagian `Build & Development Settings`, override **Build Command** dan masukkan:
-        ```bash
-        pip install -r api/requirements.txt && playwright install --with-deps chromium
-        ```
-
-    *   **Atur Environment Variable**:
-        *   Buka `Settings > Environment Variables`.
-        *   Tambahkan variabel berikut:
-          *   `GEMINI_API_KEY`: Masukkan API Key Google Gemini Anda.
-
-4.  **Dapatkan URL Backend Anda**
-    *   Setelah Vercel selesai deploy ulang, salin URL produksi Anda. Contoh: `https://ai-scrape-xxxxx.vercel.app`
+```
++---------------------------------+      +--------------------------------+
+|       REMOTE CONTROL (Termux)   |      |        OTAK AI (Vercel)        |
+|---------------------------------|      |--------------------------------|
+| - main.py (Python)              |      | - index.js (Node.js)           |
+| - Input pengguna                |      | - Browser Headless (Playwright)|
+| - Menu interaktif               |----->| - Analisa HTML + Gemini AI     |
+| - Kirim perintah via HTTP       |<-----| - Scraping Data JSON           |
++---------------------------------+      +--------------------------------+
+```
 
 ---
 
-### **Bagian 2: Setup CLI di Termux (atau PC)**
+## 🌟 2. Fitur Unggulan
 
-1.  **Install Dependensi CLI**
-    Di dalam direktori `ai-scrape` di Termux, jalankan:
-    ```bash
-    pip install -r requirements.txt
-    ```
+✅ **Failover Otomatis Multi-Server** → auto-switch jika server utama down
+✅ **AI dengan Dua Mode Otak**:
 
-2.  **Buat File Konfigurasi (`.env`)**
-    *   Buat sebuah file baru bernama `.env` di direktori utama.
-    *   Isi file `.env` dengan format berikut:
-    ```env
-    GEMINI_API_KEY="API_KEY_ANDA_DISINI"
-    VERCEL_API_URL="URL_BACKEND_VERCEL_ANDA_DISINI"
-    ```
-    *   Ganti dengan API Key Anda dan URL yang Anda dapatkan dari Vercel.
+* 🛸 **Co-pilot Penjelajah** → kasih insight saat browsing umum
+* 🎯 **GPS Pemburu** → bantu navigasi langsung ke target spesifik
+
+✅ **Menu Kontekstual Cerdas** → UI adaptif sesuai halaman (home, pencarian, detail, chapter)
+✅ **Scraping Multi-Lapis**:
+
+* 📚 Scrape **Daftar** → ambil list item (misalnya daftar komik terbaru)
+* 📖 Scrape **Detail** → info lengkap (sinopsis, genre, author, daftar chapter)
+* 🖼️ Scrape **Chapter** → ambil semua link gambar panel komik
+
+✅ **Pengalaman Pengguna Mulus** → workflow natural: cari komik → pilih hasil → scrape detail → buka chapter, semua dalam satu sesi dengan tombol back yang cerdas
 
 ---
 
-## ⚙️ Cara Menggunakan
+## 🚀 3. Alur Instalasi & Setup
 
-Setelah semua setup selesai, jalankan aplikasi dari Termux atau PC Anda dengan perintah:
+### 🖥️ Bagian 1: Setup Backend ("Otak") di Vercel
+
+1. **Clone Repository**
+
+   ```bash
+   git clone https://github.com/dhasap/api-scrape.git
+   cd api-scrape
+   ```
+
+2. **Deploy ke Vercel**
+
+   * Buka [vercel.com](https://vercel.com) dan login
+   * Klik **Add New > Project**
+   * Pilih repository `api-scrape` dari GitHub
+   * Vercel auto-deteksi Node.js → klik **Deploy**
+
+3. **Konfigurasi Project di Vercel**
+
+   * **Atur Versi Node.js** → Settings > General > Build Settings > Node.js Version: `18.x`
+   * **Tambahkan Environment Variables**:
+
+     ```env
+     GEMINI_API_KEY=API_KEY_GEMINI_ANDA
+     AWS_LAMBDA_JS_RUNTIME=nodejs18.x   # Opsional
+     ```
+   * Simpan → Vercel auto-redeploy → tunggu status **Ready**
+
+4. **Dapatkan URL Backend**
+
+   * Salin URL produksi (contoh: `https://api-scrape-alpha.vercel.app`)
+   * Ulangi langkah di atas untuk semua server cadangan
+
+---
+
+### 📱 Bagian 2: Setup CLI ("Remote Control") di Termux
+
+1. **Install Tools Wajib**
+
+   ```bash
+   pkg install rust build-essential clang pkg-config libffi openssl
+   ```
+
+2. **Install Dependensi Python**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Buat File Konfigurasi .env**
+
+   ```env
+   # Server utama
+   VERCEL_API_URL_1="https://URL_SERVER_UTAMA.vercel.app"
+
+   # Server cadangan (opsional)
+   VERCEL_API_URL_2="https://URL_SERVER_CADANGAN_1.vercel.app"
+   VERCEL_API_URL_3="https://URL_SERVER_CADANGAN_2.vercel.app"
+   ```
+
+---
+
+## ⚙️ 4. Cara Menggunakan
+
+Jalankan dari direktori `ai-scrape` di Termux:
 
 ```bash
 python main.py
 ```
 
-Anda akan disambut oleh menu interaktif yang modern. Cukup ikuti petunjuk di layar untuk memulai sesi scraping baru.
+🎉 Selamat! Sekarang lo bisa berinteraksi dengan **AI Scrape v12** layaknya punya **co-pilot AI pribadi** 🚀
