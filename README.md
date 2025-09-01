@@ -1,4 +1,4 @@
-# 📖 AI Scrape v12 - Agen Scraping Cerdas (Dokumentasi Lengkap) 🚀
+# 📖 AI Scrape v12 - Agen Scraping Cerdas 🚀
 
 <div align="center">
   <strong>🚀 Sistem agen scraping semi-autonom dengan arsitektur client-server 🚀</strong><br>
@@ -7,21 +7,36 @@
 
 ---
 
-## ✨ 1. Konsep & Arsitektur
+## 📌 Daftar Isi
 
-**AI Scrape v12** bukan sekadar scraper biasa. Ini adalah **agen cerdas** dengan arsitektur client-server modern untuk mencapai **stabilitas, kekuatan, dan kecerdasan maksimal**.
+* [✨ Konsep & Arsitektur](#-konsep--arsitektur)
+* [🌟 Fitur Unggulan](#-fitur-unggulan)
+* [🚀 Instalasi & Setup](#-instalasi--setup)
+
+  * [🖥️ Backend (Otak di Vercel)](#️-backend-otak-di-vercel)
+  * [📱 Frontend CLI (Remote Control di Termux)](#-frontend-cli-remote-control-di-termux)
+* [⚙️ Cara Menggunakan](#️-cara-menggunakan)
+* [📊 Workflow Penggunaan](#-workflow-penggunaan)
+* [🛠️ Roadmap](#️-roadmap)
+* [❓ FAQ](#-faq)
+
+---
+
+## ✨ Konsep & Arsitektur
+
+**AI Scrape v12** adalah agen scraping cerdas dengan desain **client-server**. Semua kerja berat (rendering, scraping, AI reasoning) dikerjakan oleh **backend di Vercel**, sementara pengguna cukup mengontrol lewat **CLI ringan di Termux/PC**.
 
 ### 🔹 Backend API ("Otak" di Vercel)
 
-* ⚡ Dibangun dengan **Node.js (Express) + Playwright**
-* 🧠 Menjalankan browser headless, analisa HTML kompleks, komunikasi dengan **Google Gemini AI**
-* ☁️ Semua kerja berat dilakukan di cloud, jadi perangkat lokal tetap ringan
+* Dibangun dengan **Node.js (Express) + Playwright**
+* Analisa halaman + komunikasi dengan **Google Gemini AI**
+* Headless scraping → hasil dalam format JSON
 
-### 🔹 Frontend CLI ("Remote Control" di Termux/PC)
+### 🔹 Frontend CLI ("Remote Control")
 
-* 🐍 Dibangun dengan **Python (rich & questionary)**
-* 🎮 Jadi kokpit interaktif buat user sebagai **pilot**
-* 🔄 Mengirim perintah ke Otak AI, terima hasil JSON, tampilkan dengan UI modern
+* Dibangun dengan **Python (rich & questionary)**
+* Tampilan interaktif dengan menu dinamis
+* Kirim perintah ke backend, tampilkan hasil dengan UI rapi
 
 ```
 +---------------------------------+      +--------------------------------+
@@ -36,94 +51,104 @@
 
 ---
 
-## 🌟 2. Fitur Unggulan
+## 🌟 Fitur Unggulan
 
-✅ **Failover Otomatis Multi-Server** → auto-switch jika server utama down
-✅ **AI dengan Dua Mode Otak**:
+* ✅ **Failover Multi-Server** → auto-switch jika server utama down
+* ✅ **AI dengan Dua Mode**:
 
-* 🛸 **Co-pilot Penjelajah** → kasih insight saat browsing umum
-* 🎯 **GPS Pemburu** → bantu navigasi langsung ke target spesifik
-
-✅ **Menu Kontekstual Cerdas** → UI adaptif sesuai halaman (home, pencarian, detail, chapter)
-✅ **Scraping Multi-Lapis**:
-
-* 📚 Scrape **Daftar** → ambil list item (misalnya daftar komik terbaru)
-* 📖 Scrape **Detail** → info lengkap (sinopsis, genre, author, daftar chapter)
-* 🖼️ Scrape **Chapter** → ambil semua link gambar panel komik
-
-✅ **Pengalaman Pengguna Mulus** → workflow natural: cari komik → pilih hasil → scrape detail → buka chapter, semua dalam satu sesi dengan tombol back yang cerdas
+  * 🛸 *Co-pilot Penjelajah* → untuk eksplorasi bebas
+  * 🎯 *GPS Pemburu* → navigasi langsung ke target
+* ✅ **Menu Kontekstual Cerdas** → UI adaptif sesuai halaman
+* ✅ **Scraping Multi-Lapis** (List → Detail → Chapter)
+* ✅ **User Experience Natural** → workflow mirip browsing asli
 
 ---
 
-## 🚀 3. Alur Instalasi & Setup
+## 🚀 Instalasi & Setup
 
-### 🖥️ Bagian 1: Setup Backend ("Otak") di Vercel
+### 🖥️ Backend (Otak di Vercel)
 
-1. **Clone Repository**
+1. **Persiapkan Repository**
 
-   ```bash
-   git clone https://github.com/dhasap/api-scrape.git
-   cd api-scrape
-   ```
+   * Clone project backend (misalnya `api-scrape`).
+   * Pastikan file `index.js` dan dependensi sudah siap.
 
 2. **Deploy ke Vercel**
 
-   * Buka [vercel.com](https://vercel.com) dan login
-   * Klik **Add New > Project**
-   * Pilih repository `api-scrape` dari GitHub
-   * Vercel auto-deteksi Node.js → klik **Deploy**
+   * Login ke [vercel.com](https://vercel.com).
+   * Tambahkan project baru dari repo GitHub.
+   * Pastikan platform otomatis mendeteksi Node.js.
 
-3. **Konfigurasi Project di Vercel**
+3. **Atur Konfigurasi Vercel**
 
-   * **Atur Versi Node.js** → Settings > General > Build Settings > Node.js Version: `18.x`
-   * **Tambahkan Environment Variables**:
+   * Pilih Node.js version **18.x** di Build Settings.
+   * Tambahkan environment variables (misalnya `GEMINI_API_KEY`).
+   * Tunggu hingga status deploy menjadi **Ready**.
 
-     ```env
-     GEMINI_API_KEY=API_KEY_GEMINI_ANDA
-     AWS_LAMBDA_JS_RUNTIME=nodejs18.x   # Opsional
-     ```
-   * Simpan → Vercel auto-redeploy → tunggu status **Ready**
+4. **Catat URL Backend**
 
-4. **Dapatkan URL Backend**
-
-   * Salin URL produksi (contoh: `https://api-scrape-alpha.vercel.app`)
-   * Ulangi langkah di atas untuk semua server cadangan
+   * Salin URL produksi (misalnya `https://api-scrape.vercel.app`).
+   * (Opsional) Deploy ke beberapa project untuk server cadangan.
 
 ---
 
-### 📱 Bagian 2: Setup CLI ("Remote Control") di Termux
+### 📱 Frontend CLI (Remote Control di Termux)
 
 1. **Install Tools Wajib**
 
-   ```bash
-   pkg install rust build-essential clang pkg-config libffi openssl
-   ```
+   * Install compiler & library dasar (contoh: `clang`, `openssl`).
 
 2. **Install Dependensi Python**
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+   * Gunakan `requirements.txt` untuk menginstal library yang dibutuhkan.
 
-3. **Buat File Konfigurasi .env**
+3. **Buat File `.env`**
 
-   ```env
-   # Server utama
-   VERCEL_API_URL_1="https://URL_SERVER_UTAMA.vercel.app"
-
-   # Server cadangan (opsional)
-   VERCEL_API_URL_2="https://URL_SERVER_CADANGAN_1.vercel.app"
-   VERCEL_API_URL_3="https://URL_SERVER_CADANGAN_2.vercel.app"
-   ```
+   * Masukkan URL backend dari langkah sebelumnya.
+   * Bisa tambahkan lebih dari satu server untuk failover.
 
 ---
 
-## ⚙️ 4. Cara Menggunakan
+## ⚙️ Cara Menggunakan
 
-Jalankan dari direktori `ai-scrape` di Termux:
+1. Jalankan CLI dengan Python.
+2. Pilih mode operasi (Co-pilot / GPS).
+3. Navigasi menggunakan menu interaktif.
+4. Hasil scraping ditampilkan langsung di terminal.
 
-```bash
-python main.py
-```
+---
 
-🎉 Selamat! Sekarang lo bisa berinteraksi dengan **AI Scrape v12** layaknya punya **co-pilot AI pribadi** 🚀
+## 📊 Workflow Penggunaan
+
+1. **Cari Komik/Item**
+2. **Pilih dari daftar hasil**
+3. **Scrape detail lengkap**
+4. **Buka chapter dan ambil panel gambar**
+
+Semua langkah bisa dilakukan dalam satu sesi tanpa restart.
+
+---
+
+## 🛠️ Roadmap
+
+* [ ] Integrasi penyimpanan hasil ke database (Supabase)
+* [ ] Mode offline dengan cache lokal
+* [ ] Ekspor hasil scraping ke PDF/EPUB
+* [ ] Plugin tambahan untuk berbagai situs
+
+---
+
+## ❓ FAQ
+
+**Q: Bisa dijalankan di Windows/Linux selain Termux?**
+A: Ya, CLI berbasis Python jadi fleksibel di semua OS.
+
+**Q: Apakah scraping ini aman?**
+A: Gunakan dengan bijak. Ikuti ketentuan situs target.
+
+**Q: Apa keunggulan dibanding scraper biasa?**
+A: Integrasi AI + failover server bikin lebih cerdas, stabil, dan fleksibel.
+
+---
+
+🎉 Selamat! Dengan **AI Scrape v12**, lo sekarang punya **agen scraping AI pribadi** yang modern dan siap tempur 🚀
