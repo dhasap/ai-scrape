@@ -1,4 +1,4 @@
-# main.py (v12.3 - The Final Version)
+# main.py (v12.4 - Anti-Loop Logic)
 import os
 import json
 import sys
@@ -28,7 +28,7 @@ if not API_URLS:
 # --- Komponen Tampilan & Logika API ---
 def print_header():
     ascii_art = pyfiglet.figlet_format('AI SCRAPE', font='slant')
-    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v12.3 - The Final Version"))
+    console.print(Panel(f"[bold cyan]{ascii_art}[/bold cyan]", title="Universal AI Comic Scraper", subtitle="v12.4 - Anti-Loop Logic"))
 
 def call_api(endpoint, payload):
     for i, base_url in enumerate(API_URLS):
@@ -124,7 +124,6 @@ def interactive_session():
         if is_exploration_mode and contextual_suggestion:
             console.print(f"[italic magenta]🤖 [Co-pilot] Saran: {contextual_suggestion.get('suggestion_text', 'N/A')}[/italic magenta]")
             
-            # --- PERBAIKAN: Menu Co-pilot yang bersih dan cerdas ---
             copilot_choices = [
                 questionary.Choice(title="✅ Jalankan Saran Ini", value="do_it"),
                 questionary.Choice(title="❌ Abaikan & Lihat Opsi Lain", value="ignore"),
@@ -221,8 +220,9 @@ def interactive_session():
                     console.print(Panel("[bold green]✅ Ekstraksi Daftar Selesai![/bold green]", border_style="green"))
                     console.print(Syntax(json.dumps(scraped_data, indent=2, ensure_ascii=False), "json", theme="monokai"))
                     input("\nTekan Enter untuk melanjutkan...")
-                    # --- PERBAIKAN: Mematikan Co-pilot sementara untuk mencegah loop ---
+                    # --- PERBAIKAN FINAL: Mereset state setelah scrape daftar ---
                     is_exploration_mode = False
+                    goal = None
 
         if current_url: continue
         else: break
