@@ -1,4 +1,4 @@
-# main.py (Remote Control v3.0 - Edisi Hacker)
+# main.py (Remote Control v3.1 - Edisi Multi-Server Hacker)
 import os
 import json
 import sys
@@ -16,35 +16,31 @@ import pyfiglet
 
 # --- Konfigurasi ---
 load_dotenv()
-API_URL = os.getenv("API_URL_PRIMARY")
-API_URL_BACKUP = os.getenv("API_URL_BACKUP")
+# BARU: Membaca semua VERCEL_API_URL dari .env secara dinamis
+API_URLS = [os.environ.get(f"VERCEL_API_URL_{i}") for i in range(1, 10) if os.environ.get(f"VERCEL_API_URL_{i}")]
 console = Console()
 
 def call_api(payload):
-    """Fungsi inti untuk mengirim perintah ke 'Otak AI' dengan tampilan live status."""
-    urls_to_try = [API_URL, API_URL_BACKUP]
+    """Fungsi inti untuk mengirim perintah ke 'Otak AI' dengan dukungan failover multi-server."""
     spinner = Spinner("dots", text=" Menghubungi Otak AI...")
     live = Live(spinner, console=console, transient=True, refresh_per_second=10)
     
-    for i, url in enumerate(urls_to_try):
-        if not url:
-            continue
-        
-        server_name = "utama" if i == 0 else "backup"
-        endpoint = f"{url.rstrip('/')}/api/scrape"
-        live.update(Panel(f"[bold cyan]Menghubungi server {server_name}...[/bold cyan]\n[dim]{endpoint}[/dim]", border_style="cyan"))
+    for i, base_url in enumerate(API_URLS):
+        server_name = f"Server {i+1}"
+        endpoint = f"{base_url.rstrip('/')}/api/scrape"
+        live.update(Panel(f"[bold cyan]Menghubungi {server_name}...[/bold cyan]\n[dim]{endpoint}[/dim]", border_style="cyan"))
 
         try:
             with live:
                 response = requests.post(endpoint, json=payload, timeout=180)
                 response.raise_for_status()
-            console.print(f"[bold green]✅ Koneksi ke server {server_name} berhasil.[/bold green]")
+            console.print(f"[bold green]✅ Koneksi ke {server_name} berhasil.[/bold green]")
             return response.json()
         except requests.exceptions.RequestException as e:
-            console.print(f"[bold red]❌ Gagal menghubungi server {server_name}: {e}[/bold red]")
-            if i < len(urls_to_try) - 1 and urls_to_try[i+1]:
-                 console.print("[yellow]Mencoba server backup dalam 2 detik...[/yellow]")
-                 time.sleep(2)
+            console.print(f"[bold red]❌ Gagal menghubungi {server_name}: {e}[/bold red]")
+            if i < len(API_URLS) - 1:
+                 console.print(f"[yellow]Mencoba server berikutnya ({i+2})...[/yellow]")
+                 time.sleep(1)
             else:
                 return {"status": "error", "message": "Semua server API gagal dihubungi."}
     return {"status": "error", "message": "Tidak ada URL API yang dikonfigurasi."}
@@ -63,7 +59,7 @@ def display_results(response_data):
 
     action = response_data.get("action", "UNKNOWN_ACTION")
     
-    table = Table(show_header=True, header_style="bold magenta", border_style="bright_black")
+    table = Table(show_header=True, header_style="bold magenta", border_style="bright_black", title="[bold]--=[ AI RESPONSE LOG ]=--[/bold]")
     table.add_column("SYSTEM LOG", style="dim", width=20)
     table.add_column("DETAILS")
     table.add_row("[AI DECISION]", f"[bold green]{action.upper()}[/bold green]")
@@ -89,7 +85,7 @@ def print_header():
     """Mencetak banner utama."""
     ascii_art = pyfiglet.figlet_format('AI-SCRAPE', font='doom')
     console.print(Panel(f"[bold green]{ascii_art}[/bold green]", 
-                        title="[v3.0 HACKER-EDITION]", 
+                        title="[v3.1 MULTI-SERVER]", 
                         subtitle="[cyan]READY FOR DIRECTIVES[/cyan]", 
                         border_style="green"))
 
@@ -111,13 +107,11 @@ def interactive_session():
             response = call_api(payload)
             display_results(response)
             
-            # Jika aksi terakhir adalah navigasi, perbarui state untuk perintah berikutnya
             if response.get("action") == "navigate":
                 current_url = response.get("url")
                 current_instruction = response.get("instruction")
                 console.print(Panel(f"STATE UPDATED. NEXT TARGET: [cyan]{current_url}[/cyan]", border_style="yellow"))
             
-            # Meminta perintah berikutnya dari pengguna
             next_instruction = console.input(f"[bold yellow]DIRECTIVE ({current_url[:50]}...)> [/bold yellow]")
 
             if not next_instruction or next_instruction.lower() in ['exit', 'quit', 'keluar']:
@@ -126,15 +120,14 @@ def interactive_session():
             current_instruction = next_instruction
 
     except (KeyboardInterrupt, EOFError):
-        # EOFError untuk Ctrl+D
         console.print("\n[bold red]SHUTDOWN SIGNAL DETECTED.[/bold red]")
     
     console.print("\n[bold yellow]...CONNECTION TERMINATED...[/bold yellow]")
 
 
 if __name__ == "__main__":
-    if not all([API_URL, API_URL_BACKUP]):
-        console.print(Panel("[bold red]! PERINGATAN KONFIGURASI ![/bold red]\nFile [cyan].env[/cyan] tidak ditemukan atau [cyan]API_URL_PRIMARY[/cyan] tidak diatur. Silakan periksa file [cyan]README.md[/cyan].", border_style="red"))
+    if not API_URLS:
+        console.print(Panel("[bold red]! PERINGATAN KONFIGURASI ![/bold red]\nFile [cyan].env[/cyan] tidak ditemukan atau variabel [cyan]VERCEL_API_URL_1[/cyan] tidak diatur. Silakan periksa file [cyan]README.md[/cyan].", border_style="red"))
         sys.exit(1)
     interactive_session()
 
