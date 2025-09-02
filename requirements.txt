@@ -1,5 +1,5 @@
 requests
-rich
-questionary
-pyfiglet
 python-dotenv
+questionary
+rich
+pyfiglet
