@@ -1,4 +1,4 @@
-# main.py (Remote Control v3.1 - Edisi Multi-Server Hacker)
+# main.py (Remote Control v3.2 - Edisi Multi-Server Hacker dengan URL Fix)
 import os
 import json
 import sys
@@ -85,7 +85,7 @@ def print_header():
     """Mencetak banner utama."""
     ascii_art = pyfiglet.figlet_format('AI-SCRAPE', font='doom')
     console.print(Panel(f"[bold green]{ascii_art}[/bold green]", 
-                        title="[v3.1 MULTI-SERVER]", 
+                        title="[v3.2 URL-FIX]", 
                         subtitle="[cyan]READY FOR DIRECTIVES[/cyan]", 
                         border_style="green"))
 
@@ -95,9 +95,18 @@ def interactive_session():
 
     try:
         current_url = console.input("[bold yellow]TARGET URL> [/bold yellow]")
+        
+        # ================== PERBAIKAN: Validasi dan Perbaikan URL Otomatis ==================
         if not current_url:
             console.print("[bold red]FATAL: Target URL tidak boleh kosong. Operasi dibatalkan.[/bold red]")
             return
+        
+        # Cek apakah URL sudah memiliki http:// atau https://
+        if not current_url.startswith(('http://', 'https://')):
+            # Jika tidak, tambahkan https:// secara default
+            current_url = 'https://' + current_url
+            console.print(f"[dim]URL tidak lengkap, otomatis diperbaiki -> [underline cyan]{current_url}[/underline cyan][/dim]")
+        # =================================================================================
 
         current_instruction = "analisa halaman ini dan berikan ringkasan"
         
