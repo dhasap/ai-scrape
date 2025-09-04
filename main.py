@@ -84,7 +84,7 @@ def display_results(response_data: dict):
     action = response_data.get("action")
     
     if action == "extract":
-        data = response_data.get("data", {})
+        data = response_data.get("structured_data", {})
         if not data:
             console.print(Panel("[yellow]AI melaporkan tidak ada data yang bisa diekstrak sesuai instruksi.[/yellow]", title="Info", border_style="yellow"))
             return
