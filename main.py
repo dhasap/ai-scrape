@@ -1,5 +1,5 @@
-# main.py (Remote Control v5.1 - Edisi Hacker)
-# Disesuaikan untuk backend D.1 dengan tampilan CLI yang disempurnakan.
+# main.py (Remote Control v6.0 - Edisi Terstruktur)
+# Diperbarui untuk menangani dan menampilkan data objek terstruktur dari backend.
 import os
 import sys
 from urllib.parse import urljoin, urlparse
@@ -12,6 +12,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.markdown import Markdown
 from rich.padding import Padding
+from rich import box
 import pyfiglet
 
 # --- Inisialisasi & Konfigurasi Global ---
@@ -57,9 +58,13 @@ def call_api_with_failover(payload: dict) -> dict | None:
                 return None
     return None
 
+# ==============================================================================
+# === FUNGSI TAMPILAN HASIL (DIROMBAK TOTAL UNTUK DATA TERSTRUKTUR) ===
+# ==============================================================================
 def display_results(response_data: dict):
     """
     Menampilkan data dari API dengan format visual yang terstruktur.
+    Kini mendukung 'extract_structured' untuk menampilkan objek data.
     """
     if not response_data:
         console.print(Panel("[bold red]KEGAGALAN SISTEM[/bold red]\nTidak ada respons valid dari server.", title="[ERROR]", border_style="red"))
@@ -82,14 +87,54 @@ def display_results(response_data: dict):
         return
 
     action = response_data.get("action")
-    
-    if action == "extract":
-        data = response_data.get("structured_data", {})
+
+    # --- LOGIKA BARU: Menangani hasil ekstraksi terstruktur ---
+    if action == "extract_structured":
+        structured_data = response_data.get("structured_data", [])
+        if not structured_data:
+            console.print(Panel("[yellow]AI melaporkan tidak ada data terstruktur yang bisa diekstrak.[/yellow]", title="Info", border_style="yellow"))
+            return
+
+        console.print(Panel("[bold green]📊 HASIL EKSTRAKSI TERSTRUKTUR[/bold green]", expand=False, border_style="green"))
+        
+        # Batasi tampilan hingga 5 item pertama untuk keterbacaan
+        display_limit = 5
+        for index, item in enumerate(structured_data[:display_limit]):
+            # Membuat tabel untuk setiap item agar rapi
+            item_table = Table(box=box.ROUNDED, show_header=False, title=f"[cyan]Item #{index + 1}[/cyan]")
+            item_table.add_column("Key", style="dim", width=15)
+            item_table.add_column("Value", style="bright_white")
+
+            if item.get('title'):
+                item_table.add_row("Judul", item['title'])
+            if item.get('url'):
+                item_table.add_row("URL", f"[link={item['url']}]{item['url']}[/link]")
+            if item.get('thumbnail'):
+                item_table.add_row("Thumbnail", f"[link={item['thumbnail']}]{item['thumbnail']}[/link]")
+
+            # Menangani objek chapter yang bersarang
+            if isinstance(item.get('latest_chapter'), dict):
+                chapter = item['latest_chapter']
+                chapter_title = chapter.get('title', 'N/A')
+                chapter_url = chapter.get('url')
+                display_chapter = f"{chapter_title}"
+                if chapter_url:
+                    display_chapter += f" ([link={chapter_url}]link[/link])"
+                item_table.add_row("Chapter", display_chapter)
+            
+            console.print(item_table)
+
+        if len(structured_data) > display_limit:
+            console.print(f"[italic]...dan {len(structured_data) - display_limit} item lainnya.[/italic]")
+
+    # --- LOGIKA LAMA: Menangani 'extract' (sebagai fallback) ---
+    elif action == "extract":
+        data = response_data.get("data", {})
         if not data:
-            console.print(Panel("[yellow]AI melaporkan tidak ada data yang bisa diekstrak sesuai instruksi.[/yellow]", title="Info", border_style="yellow"))
+            console.print(Panel("[yellow]AI melaporkan tidak ada data (flat) yang bisa diekstrak.[/yellow]", title="Info", border_style="yellow"))
             return
         
-        table = Table(title="[bold green]📊 HASIL EKSTRAKSI DATA[/bold green]", show_header=True, header_style="bold cyan")
+        table = Table(title="[bold green]📊 HASIL EKSTRAKSI DATA (FLAT)[/bold green]", show_header=True, header_style="bold cyan")
         table.add_column("Nama Data", style="dim", width=25)
         table.add_column("Hasil (Maks. 10 item)")
 
@@ -106,12 +151,13 @@ def display_results(response_data: dict):
         response_text = response_data.get("response", "AI tidak memberikan respons verbal.")
         console.print(Panel(Markdown(response_text), title="[bold blue]🗣️ RESPON AI[/bold blue]", border_style="blue"))
 
+
 def print_header():
     """Mencetak banner aplikasi dengan gaya 'hacker'."""
     console.clear()
     ascii_art = pyfiglet.figlet_format("CognitoScraper", font="slant")
     console.print(f"[bold green]{ascii_art}[/bold green]")
-    console.print(Panel("Selamat datang di [bold]Remote Control v5.1[/bold]. Terhubung dengan agen AI. Ketik 'exit' atau 'quit' untuk keluar.", expand=False, border_style="blue"))
+    console.print(Panel("Selamat datang di [bold]Remote Control v6.0[/bold]. Terhubung dengan agen AI. Ketik 'exit' atau 'quit' untuk keluar.", expand=False, border_style="blue"))
 
 def interactive_session():
     """Fungsi utama yang menjalankan loop interaktif sesi CLI."""
@@ -124,7 +170,7 @@ def interactive_session():
         console.print("[bold red]URL tidak valid. Harap masukkan URL lengkap (contoh: https://www.example.com)[/bold red]")
 
     conversation_history = []
-    current_instruction = "analisa halaman ini secara menyeluruh, berikan ringkasan, dan sarankan 2-3 hal spesifik yang bisa diekstrak dari sini."
+    current_instruction = "analisa halaman ini, berikan ringkasan, dan ekstrak daftar komik terbaru sebagai objek terstruktur berisi judul, url, thumbnail, dan chapter terbaru."
     
     while True:
         payload = {
@@ -140,7 +186,7 @@ def interactive_session():
             human_turn = {"human": current_instruction}
             ai_turn = {"ai": response.get("commentary", "")}
             conversation_history.extend([human_turn, ai_turn])
-            conversation_history = conversation_history[-10:] # Batasi 6 percakapan terakhir
+            conversation_history = conversation_history[-10:]
         
         if response and response.get("action") == "navigate":
             new_url = response.get("url")
