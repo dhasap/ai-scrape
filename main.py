@@ -1,5 +1,5 @@
-# main.py (Remote Control v9.0 - Edisi JSON Output)
-# Tampilan hasil diubah total untuk menampilkan JSON mentah.
+# main.py (Remote Control v10.0 - Edisi Ringkasan + JSON)
+# Menampilkan ringkasan visual dengan Rich, diikuti oleh output JSON mentah.
 import os
 import sys
 from urllib.parse import urljoin, urlparse
@@ -9,6 +9,9 @@ import json
 from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
+from rich.table import Table
+from rich.markdown import Markdown
+from rich import box
 import pyfiglet
 
 # --- Inisialisasi & Konfigurasi Global ---
@@ -19,7 +22,6 @@ if not API_URLS:
     print(json.dumps({"status": "error", "message": "VERCEL_API_URL_1 tidak ditemukan di file .env"}, indent=2, ensure_ascii=False))
     sys.exit(1)
 
-# Rich Console masih digunakan untuk Spinner dan header
 console = Console()
 session = requests.Session()
 
@@ -36,14 +38,12 @@ def call_api_with_failover(payload: dict) -> dict | None:
     for i, base_url in enumerate(API_URLS, 1):
         api_endpoint = urljoin(base_url, "/api/scrape")
         try:
-            # Spinner masih digunakan untuk memberikan feedback saat menunggu
             spinner_text = f"Menghubungi CognitoScraper [Server {i}/{len(API_URLS)}]..."
             with Live(Spinner("dots", text=spinner_text), console=console, transient=True, refresh_per_second=20):
                 response = session.post(api_endpoint, json=payload, timeout=180)
                 response.raise_for_status()
                 return response.json()
         except requests.exceptions.RequestException as e:
-            # Pesan error koneksi tetap ditampilkan di stderr agar tidak mengganggu output JSON
             console.print(f"[bold red]Koneksi ke server {i} gagal: {e}[/bold red]", style="stderr")
             if i < len(API_URLS):
                 console.print("[yellow]Mencoba server cadangan...[/yellow]", style="stderr")
@@ -53,15 +53,41 @@ def call_api_with_failover(payload: dict) -> dict | None:
     return None
 
 # ==============================================================================
-# === FUNGSI TAMPILAN HASIL (DIUBAH TOTAL MENJADI JSON MENTAH) ===
+# === FUNGSI TAMPILAN HASIL (DIUBAH MENJADI RINGKASAN + JSON MENTAH) ===
 # ==============================================================================
 def display_results(response_data: dict):
-    """Tampilkan hasil scrape sebagai JSON mentah."""
+    """
+    Menampilkan ringkasan hasil dalam tabel Rich, diikuti oleh JSON mentah.
+    """
+    console.print("-" * 80)
     if not response_data:
-        print(json.dumps({"status": "error", "message": "Tidak ada respons dari server"}, indent=2, ensure_ascii=False))
-        return
+        response_data = {"status": "error", "message": "Tidak ada respons valid dari server"}
 
+    # 1. Tampilkan Tabel Ringkasan
+    summary_table = Table(title="[bold]Ringkasan Respons AI[/bold]", box=box.MINIMAL, show_header=False, expand=True)
+    summary_table.add_column("Field", style="dim", width=15)
+    summary_table.add_column("Value", style="bright_white")
+
+    # Status (dengan warna)
+    status = response_data.get("status", "unknown")
+    status_color = "green" if status == "success" else "red"
+    summary_table.add_row("Status", f"[{status_color}]{status}[/{status_color}]")
+
+    # Penalaran AI
+    if "reasoning" in response_data:
+        summary_table.add_row("[yellow]Penalaran AI[/yellow]", f"[italic yellow]{response_data['reasoning']}[/italic yellow]")
+
+    # Komentar AI
+    if "commentary" in response_data:
+        summary_table.add_row("[magenta]Komentar AI[/magenta]", Markdown(response_data['commentary']))
+
+    console.print(summary_table)
+    console.print("-" * 80)
+
+    # 2. Tampilkan JSON Mentah
+    console.print("[bold]Full Raw JSON Response:[/bold]")
     print(json.dumps(response_data, indent=2, ensure_ascii=False))
+    console.print("-" * 80)
 
 
 def print_header():
@@ -69,8 +95,7 @@ def print_header():
     console.clear()
     ascii_art = pyfiglet.figlet_format("CognitoScraper", font="slant")
     console.print(f"[bold green]{ascii_art}[/bold green]")
-    console.print("Mode Output JSON. Masukkan URL dan instruksi. Ketik 'exit' atau 'quit' untuk keluar.")
-    console.print("-" * 60)
+    console.print("Mode: Ringkasan + JSON. Masukkan URL dan instruksi. Ketik 'exit' atau 'quit' untuk keluar.")
 
 
 def interactive_session():
@@ -90,11 +115,12 @@ def interactive_session():
             sys.exit(0)
             
     conversation_history = []
+    current_instruction = "analisa halaman ini dan berikan saran scrape"
     
     while True:
         try:
             domain = urlparse(target_url).netloc
-            current_instruction = console.input(f"[bold yellow]✍️ PERINTAH ([/bold yellow][cyan]{domain}[/cyan][bold yellow]) > [/bold yellow]")
+            current_instruction = console.input(f"\n[bold yellow]✍️ PERINTAH ([/bold yellow][cyan]{domain}[/cyan][bold yellow]) > [/bold yellow]")
         except (KeyboardInterrupt, EOFError):
             console.print("\n\n[bold cyan]Sesi diakhiri oleh pengguna.[/bold cyan]")
             break
@@ -111,31 +137,24 @@ def interactive_session():
         
         response = call_api_with_failover(payload)
         
-        # Garis pemisah sebelum output JSON
-        console.print("-" * 60)
         display_results(response)
-        # Garis pemisah setelah output JSON
-        console.print("-" * 60)
         
         # Riwayat percakapan tetap dipertahankan untuk konteks AI
         if response and response.get("status") == "success":
             human_turn = {"human": current_instruction}
-            # Mengambil data relevan dari respons untuk AI
             ai_comment = response.get("commentary", "")
-            ai_data_summary = f"Data terstruktur berisi {len(response.get('structured_data', []))} item." if 'structured_data' in response else "Tidak ada data terstruktur."
-            ai_turn = {"ai": f"{ai_comment} {ai_data_summary}"}
+            ai_data_summary = f"Data terstruktur berisi {len(response.get('structured_data', []))} item." if 'structured_data' in response else ""
+            ai_turn = {"ai": f"{ai_comment} {ai_data_summary}".strip()}
 
             conversation_history.extend([human_turn, ai_turn])
             conversation_history = conversation_history[-10:]
         
-        # Logika navigasi tetap ada, URL target akan diperbarui
+        # Logika navigasi tetap ada
         if response and response.get("action") == "navigate":
             new_url = response.get("url")
             if new_url:
                 target_url = urljoin(target_url, new_url)
-                # Notifikasi navigasi ditampilkan di stderr
-                console.print(f"✈️ NAVIGASI OTOMATIS. Target baru: {target_url}", style="bold green stderr")
-
+                console.print(f"✈️ [bold green]NAVIGASI OTOMATIS.[/bold green] Target baru: [cyan]{target_url}[/cyan]")
 
 if __name__ == "__main__":
     interactive_session()
