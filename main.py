@@ -1,5 +1,5 @@
-# main.py (Remote Control v10.0 - Edisi Ringkasan + JSON)
-# Menampilkan ringkasan visual dengan Rich, diikuti oleh output JSON mentah.
+# main.py (Remote Control v11.0 - Edisi Power User)
+# Menampilkan ringkasan dalam satu panel, diikuti oleh JSON hasil scrape murni.
 import os
 import sys
 from urllib.parse import urljoin, urlparse
@@ -9,9 +9,8 @@ import json
 from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
-from rich.table import Table
+from rich.panel import Panel
 from rich.markdown import Markdown
-from rich import box
 import pyfiglet
 
 # --- Inisialisasi & Konfigurasi Global ---
@@ -53,41 +52,45 @@ def call_api_with_failover(payload: dict) -> dict | None:
     return None
 
 # ==============================================================================
-# === FUNGSI TAMPILAN HASIL (DIUBAH MENJADI RINGKASAN + JSON MENTAH) ===
+# === FUNGSI TAMPILAN HASIL (DIUBAH KE MODE POWER USER) ===
 # ==============================================================================
 def display_results(response_data: dict):
     """
-    Menampilkan ringkasan hasil dalam tabel Rich, diikuti oleh JSON mentah.
+    Menampilkan ringkasan dalam satu Panel, diikuti oleh JSON hasil scrape murni.
     """
     console.print("-" * 80)
     if not response_data:
         response_data = {"status": "error", "message": "Tidak ada respons valid dari server"}
 
-    # 1. Tampilkan Tabel Ringkasan
-    summary_table = Table(title="[bold]Ringkasan Respons AI[/bold]", box=box.MINIMAL, show_header=False, expand=True)
-    summary_table.add_column("Field", style="dim", width=15)
-    summary_table.add_column("Value", style="bright_white")
-
-    # Status (dengan warna)
+    # 1. Tampilkan Ringkasan dalam Satu Panel
     status = response_data.get("status", "unknown")
     status_color = "green" if status == "success" else "red"
-    summary_table.add_row("Status", f"[{status_color}]{status}[/{status_color}]")
+    
+    summary_content_parts = []
+    summary_content_parts.append(f"[bold]Status:[/bold] [{status_color}]{status}[/{status_color}]")
 
-    # Penalaran AI
     if "reasoning" in response_data:
-        summary_table.add_row("[yellow]Penalaran AI[/yellow]", f"[italic yellow]{response_data['reasoning']}[/italic yellow]")
+        summary_content_parts.append(f"\n\n[bold yellow]Penalaran AI:[/bold]\n[italic yellow]{response_data['reasoning']}[/italic yellow]")
 
-    # Komentar AI
     if "commentary" in response_data:
-        summary_table.add_row("[magenta]Komentar AI[/magenta]", Markdown(response_data['commentary']))
+        # Gunakan Markdown untuk komentar agar formatnya bagus
+        summary_content_parts.append(f"\n\n[bold magenta]Komentar AI:[/bold]\n" + response_data['commentary'])
 
-    console.print(summary_table)
+    # Gabungkan semua bagian dan tampilkan di dalam Panel
+    console.print(Panel(
+        Markdown("\n".join(summary_content_parts)),
+        title="[bold]Ringkasan Respons AI[/bold]", 
+        border_style="cyan", 
+        expand=True
+    ))
     console.print("-" * 80)
 
-    # 2. Tampilkan JSON Mentah
-    console.print("[bold]Full Raw JSON Response:[/bold]")
-    print(json.dumps(response_data, indent=2, ensure_ascii=False))
-    console.print("-" * 80)
+    # 2. Tampilkan HANYA JSON Hasil Scrape
+    scraped_data = response_data.get("structured_data")
+    if scraped_data is not None:
+        console.print("[bold]Scraped Data (JSON):[/bold]")
+        print(json.dumps(scraped_data, indent=2, ensure_ascii=False))
+        console.print("-" * 80)
 
 
 def print_header():
@@ -95,7 +98,7 @@ def print_header():
     console.clear()
     ascii_art = pyfiglet.figlet_format("CognitoScraper", font="slant")
     console.print(f"[bold green]{ascii_art}[/bold green]")
-    console.print("Mode: Ringkasan + JSON. Masukkan URL dan instruksi. Ketik 'exit' atau 'quit' untuk keluar.")
+    console.print("Mode: Power User. [italic]Hint: Beri instruksi detail untuk hasil scrape yang lengkap.[/italic]")
 
 
 def interactive_session():
