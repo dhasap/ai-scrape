@@ -1,5 +1,5 @@
-# main.py (Versi 11.0 - Dual Mode: Interaktif & Otonom)
-# Menambahkan mode otonom/crawler dengan argumen command-line dan manajemen resep.
+# main.py (Versi 12.0 - Pemilihan User-Agent)
+# Menambahkan opsi pemilihan User-Agent di mode interaktif dan otonom.
 import os
 import sys
 import json
@@ -14,6 +14,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.markdown import Markdown
 import pyfiglet
+import questionary
 
 # --- Inisialisasi & Konfigurasi Global ---
 load_dotenv()
@@ -102,7 +103,7 @@ def print_header():
     console.print(f"[bold green]{ascii_art}[/bold green]")
 
 # ==============================================================================
-# === MODE INTERAKTIF (TIDAK DIUBAH SECARA SIGNIFIKAN) ===
+# === MODE INTERAKTIF (DIMODIFIKASI) ===
 # ==============================================================================
 def interactive_session():
     """Fungsi yang menjalankan loop interaktif sesi CLI."""
@@ -115,11 +116,34 @@ def interactive_session():
         if not is_valid_url(target_url):
             console.print("[bold red]URL tidak valid.[/bold red]")
 
+    # --- BARU: Pemilihan User-Agent ---
+    user_agent_choice = questionary.select(
+        "Pilih User-Agent untuk misi ini:",
+        choices=[
+            questionary.Choice("Browser Standar (Untuk situs web umum)", 'default'),
+            questionary.Choice("ExoPlayer (Untuk streaming/API media)", 'exoplayer')
+        ],
+        pointer="»"
+    ).ask()
+
+    user_agent_string = None
+    if user_agent_choice == 'exoplayer':
+        user_agent_string = "ExoPlayerDemo/2.15.1 (Linux; Android 13) ExoPlayerLib/2.15.1"
+        console.print(f"[cyan]✓ Mode ExoPlayer diaktifkan.[/cyan]")
+    else:
+        console.print(f"[cyan]✓ Mode Browser Standar diaktifkan.[/cyan]")
+    # --- AKHIR BARU ---
+
     conversation_history = []
     current_instruction = "analisa halaman ini dan berikan saran scraping"
     
     while True:
-        payload = {"url": target_url, "instruction": current_instruction, "conversation_history": conversation_history}
+        payload = {
+            "url": target_url, 
+            "instruction": current_instruction, 
+            "conversation_history": conversation_history,
+            "userAgent": user_agent_string
+        }
         
         response = call_api_with_failover(payload, endpoint="/api/scrape")
         
@@ -155,7 +179,7 @@ def interactive_session():
         current_instruction = next_instruction
 
 # ==============================================================================
-# === MODE OTONOM / CRAWLER (BARU) ===
+# === MODE OTONOM / CRAWLER (DIMODIFIKASI) ===
 # ==============================================================================
 def run_crawler_session(args):
     """Menjalankan scraper dalam mode otonom non-interaktif."""
@@ -178,10 +202,23 @@ def run_crawler_session(args):
         console.print("[bold red]❌ Error: Instruksi atau resep tidak diberikan.[/bold red]")
         sys.exit(1)
 
+    # --- BARU: Pemilihan User-Agent dari argumen ---
+    user_agent_string = None
+    if args.user_agent == 'exoplayer':
+        user_agent_string = "ExoPlayerDemo/2.15.1 (Linux; Android 13) ExoPlayerLib/2.15.1"
+        console.print(f"🕵️ [bold]User-Agent:[/bold] [cyan]ExoPlayer (Media Player)[/cyan]")
+    else:
+        console.print(f"🕵️ [bold]User-Agent:[/bold] [cyan]Browser Standar[/cyan]")
+    # --- AKHIR BARU ---
+
     console.print(f"🎯 [bold]Target:[/bold] {args.url}")
     console.print(f"📝 [bold]Misi:[/bold] {instruction[:120]}...")
     
-    payload = {"url": args.url, "instruction": instruction}
+    payload = {
+        "url": args.url, 
+        "instruction": instruction,
+        "userAgent": user_agent_string
+    }
     
     response_data = call_api_with_failover(payload, endpoint="/api/chain-scrape")
     
@@ -198,7 +235,7 @@ def run_crawler_session(args):
         console.print("[bold red]❌ Misi Gagal: Tidak ada respons dari server.[/bold red]")
 
 # ==============================================================================
-# === PINTU MASUK / DISPATCHER (BARU) ===
+# === PINTU MASUK / DISPATCHER (DIMODIFIKASI) ===
 # ==============================================================================
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -210,6 +247,15 @@ if __name__ == "__main__":
     group.add_argument('--instruction', type=str, help='Instruksi langsung untuk crawler.')
     group.add_argument('--recipe', type=str, help='Path ke file teks yang berisi instruksi.')
     parser.add_argument('--output', type=str, help='Nama file JSON untuk menyimpan hasil output.')
+    # --- BARU: Argumen untuk User-Agent ---
+    parser.add_argument(
+        '--user-agent', 
+        type=str, 
+        choices=['default', 'exoplayer'], 
+        default='default', 
+        help="Pilih User-Agent: 'default' untuk browser atau 'exoplayer' untuk media player."
+    )
+    # --- AKHIR BARU ---
 
     args = parser.parse_args()
 
@@ -221,4 +267,3 @@ if __name__ == "__main__":
         if len(sys.argv) > 1:
             console.print("[yellow]Argumen tidak lengkap untuk mode otonom. Masuk ke mode interaktif.[/yellow]\n")
         interactive_session()
-
